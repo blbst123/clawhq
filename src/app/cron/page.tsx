@@ -39,7 +39,7 @@ const jobs: Job[] = [
     schedule: "35 3 * * *", 
     time: "3:35am PST",
     model: "Opus",
-    modelColor: "purple",
+    modelColor: "orange",
     enabled: true,
     lastRun: "Today, 3:35am",
     status: "success",
@@ -50,7 +50,7 @@ const jobs: Job[] = [
     schedule: "5 4 * * *", 
     time: "4:05am PST",
     model: "Opus",
-    modelColor: "purple",
+    modelColor: "orange",
     enabled: true,
     lastRun: "Today, 4:05am",
     status: "success",
@@ -103,7 +103,7 @@ export default function CronPage() {
           <h1 className="text-3xl font-bold text-white">Cron Jobs</h1>
           <p className="text-white/50">Manage scheduled tasks</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-500 hover:bg-purple-600 text-white text-sm font-medium transition-all glow-purple">
+        <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium transition-all glow-orange">
           <Plus className="h-4 w-4" />
           New Job
         </button>
@@ -124,8 +124,8 @@ export default function CronPage() {
 
         <div className="stat-card p-5">
           <div className="flex items-start justify-between mb-3">
-            <div className="p-2 rounded-lg bg-purple-500/10">
-              <CheckCircle2 className="h-5 w-5 text-purple-400" />
+            <div className="p-2 rounded-lg bg-orange-500/10">
+              <CheckCircle2 className="h-5 w-5 text-orange-400" />
             </div>
           </div>
           <p className="text-2xl font-bold text-white mb-1">12</p>
@@ -168,8 +168,8 @@ export default function CronPage() {
                     <div className="flex items-center gap-2">
                       <p className="font-medium text-white">{job.name}</p>
                       <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        job.modelColor === "purple" 
-                          ? "bg-purple-500/20 text-purple-300" 
+                        job.modelColor === "orange" 
+                          ? "bg-orange-500/20 text-orange-300" 
                           : "bg-blue-500/20 text-blue-300"
                       }`}>
                         {job.model}

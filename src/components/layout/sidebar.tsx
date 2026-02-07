@@ -11,13 +11,15 @@ import {
   MessageSquare,
   ChevronLeft,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  CalendarDays
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Calendar", href: "/calendar", icon: CalendarDays },
   { name: "Tasks", href: "/tasks", icon: ListTodo },
   { name: "Costs", href: "/costs", icon: DollarSign },
   { name: "Cron Jobs", href: "/cron", icon: Clock },
@@ -35,7 +37,7 @@ export function Sidebar() {
   return (
     <div 
       className={cn(
-        "flex h-full flex-col border-r border-white/5 bg-gradient-to-b from-[#1a1625] to-[#13111a] transition-all duration-300",
+        "flex h-full flex-col border-r border-white/5 bg-gradient-to-b from-[#1f1712] to-[#151210] transition-all duration-300",
         collapsed ? "w-16" : "w-64"
       )}
     >
@@ -44,7 +46,7 @@ export function Sidebar() {
         <div className={cn("flex items-center gap-2", collapsed && "justify-center w-full")}>
           <div className="relative">
             <span className="text-2xl">🦞</span>
-            <Sparkles className="absolute -top-1 -right-1 h-3 w-3 text-purple-400 animate-pulse" />
+            <Sparkles className="absolute -top-1 -right-1 h-3 w-3 text-orange-400 animate-pulse" />
           </div>
           {!collapsed && (
             <span className="text-xl font-bold text-gradient">ClawHQ</span>
@@ -89,7 +91,7 @@ export function Sidebar() {
               )}
               title={collapsed ? item.name : undefined}
             >
-              <item.icon className={cn("h-5 w-5", isActive && "text-purple-400")} />
+              <item.icon className={cn("h-5 w-5", isActive && "text-orange-400")} />
               {!collapsed && item.name}
             </Link>
           );
@@ -113,7 +115,7 @@ export function Sidebar() {
               )}
               title={collapsed ? item.name : undefined}
             >
-              <item.icon className={cn("h-5 w-5", isActive && "text-purple-400")} />
+              <item.icon className={cn("h-5 w-5", isActive && "text-orange-400")} />
               {!collapsed && item.name}
             </Link>
           );
@@ -127,10 +129,10 @@ export function Sidebar() {
           collapsed && "justify-center"
         )}>
           <div className="relative">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-medium">
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white text-sm font-medium">
               L
             </div>
-            <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 border-2 border-[#13111a] glow-green" />
+            <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 border-2 border-[#151210] glow-green" />
           </div>
           {!collapsed && (
             <div className="flex-1 min-w-0">

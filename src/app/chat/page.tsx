@@ -35,10 +35,10 @@ export default function ChatPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="relative">
-              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-medium">
+              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white font-medium">
                 L
               </div>
-              <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 border-2 border-[#1a1625]" />
+              <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 border-2 border-[#1f1712]" />
             </div>
             <div>
               <h2 className="font-semibold text-white">Lolo</h2>
@@ -58,14 +58,14 @@ export default function ChatPage() {
             <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium shrink-0 ${
               msg.sender === 'bill' 
                 ? 'bg-gradient-to-br from-blue-500 to-cyan-500 text-white'
-                : 'bg-gradient-to-br from-purple-500 to-pink-500 text-white'
+                : 'bg-gradient-to-br from-orange-500 to-amber-600 text-white'
             }`}>
               {msg.sender === 'bill' ? 'B' : '🦞'}
             </div>
             <div className={`max-w-[70%] ${msg.sender === 'bill' ? 'items-end' : ''}`}>
               <div className={`rounded-2xl px-4 py-3 ${
                 msg.sender === 'bill'
-                  ? 'bg-purple-500/20 text-white rounded-tr-sm'
+                  ? 'bg-orange-500/20 text-white rounded-tr-sm'
                   : 'glass-card rounded-tl-sm'
               }`}>
                 <p className="text-sm whitespace-pre-wrap text-white/90">{msg.message}</p>
@@ -88,13 +88,13 @@ export default function ChatPage() {
             <input 
               type="text"
               placeholder="Message Lolo..."
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20 transition-all"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20 transition-all"
             />
             <button className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-colors">
               <Smile className="h-5 w-5" />
             </button>
           </div>
-          <button className="p-3 rounded-xl bg-purple-500 hover:bg-purple-600 text-white transition-all glow-purple">
+          <button className="p-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-all glow-orange">
             <Send className="h-5 w-5" />
           </button>
         </div>

@@ -22,8 +22,8 @@ export default function SettingsPage() {
         {/* Connection Status */}
         <div className="glass-card rounded-xl overflow-hidden">
           <div className="p-4 border-b border-white/5 flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-purple-500/10">
-              <Plug className="h-5 w-5 text-purple-400" />
+            <div className="p-2 rounded-lg bg-orange-500/10">
+              <Plug className="h-5 w-5 text-orange-400" />
             </div>
             <div>
               <h2 className="font-semibold text-white">OpenClaw Connection</h2>
@@ -34,7 +34,7 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between py-2">
               <span className="text-white/60">Gateway URL</span>
               <div className="flex items-center gap-2">
-                <code className="text-sm bg-white/5 px-3 py-1.5 rounded-lg text-purple-300 font-mono">
+                <code className="text-sm bg-white/5 px-3 py-1.5 rounded-lg text-orange-300 font-mono">
                   http://localhost:18789
                 </code>
                 <button className="p-1.5 rounded hover:bg-white/5 text-white/40 hover:text-white transition-colors">
@@ -124,10 +124,10 @@ export default function SettingsPage() {
             <div className="flex items-center justify-between p-4 rounded-lg bg-white/[0.02] border border-white/5">
               <div className="flex items-center gap-4">
                 <div className="relative">
-                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-2xl">
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-2xl">
                     🦞
                   </div>
-                  <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-green-500 border-2 border-[#1a1625]" />
+                  <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-green-500 border-2 border-[#1f1712]" />
                 </div>
                 <div>
                   <p className="text-white font-semibold">Lolo</p>
@@ -139,7 +139,7 @@ export default function SettingsPage() {
                   <ExternalLink className="h-4 w-4" />
                   View Workspace
                 </button>
-                <button className="px-3 py-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 text-sm transition-all">
+                <button className="px-3 py-1.5 rounded-lg bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 text-sm transition-all">
                   Configure
                 </button>
               </div>

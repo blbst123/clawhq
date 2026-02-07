@@ -31,38 +31,38 @@
 
 :root {
   --radius: 0.75rem;
-  --background: oklch(0.13 0.02 280);
+  --background: oklch(0.13 0.02 45);
   --foreground: oklch(0.98 0 0);
-  --card: oklch(0.16 0.02 280 / 60%);
+  --card: oklch(0.16 0.02 45 / 60%);
   --card-foreground: oklch(0.98 0 0);
-  --popover: oklch(0.18 0.02 280);
+  --popover: oklch(0.18 0.02 45);
   --popover-foreground: oklch(0.98 0 0);
-  --primary: oklch(0.65 0.25 280);
+  --primary: oklch(0.6 0.18 45);
   --primary-foreground: oklch(0.98 0 0);
-  --secondary: oklch(0.22 0.03 280);
+  --secondary: oklch(0.22 0.03 45);
   --secondary-foreground: oklch(0.98 0 0);
-  --muted: oklch(0.22 0.02 280);
+  --muted: oklch(0.22 0.02 45);
   --muted-foreground: oklch(0.65 0 0);
-  --accent: oklch(0.65 0.25 280);
+  --accent: oklch(0.6 0.18 45);
   --accent-foreground: oklch(0.98 0 0);
   --destructive: oklch(0.6 0.25 25);
   --border: oklch(1 0 0 / 8%);
   --input: oklch(1 0 0 / 10%);
-  --ring: oklch(0.65 0.25 280);
+  --ring: oklch(0.6 0.18 45);
 }
 
 /* Gradient background */
 .bg-gradient-dark {
   background: linear-gradient(135deg, 
-    oklch(0.12 0.03 280) 0%, 
-    oklch(0.10 0.02 260) 50%,
-    oklch(0.11 0.025 290) 100%
+    oklch(0.12 0.03 45) 0%, 
+    oklch(0.10 0.02 35) 50%,
+    oklch(0.11 0.025 55) 100%
   );
 }
 
 /* Glass card effect */
 .glass-card {
-  background: oklch(0.18 0.02 280 / 40%);
+  background: oklch(0.18 0.02 45 / 40%);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid oklch(1 0 0 / 8%);
@@ -72,7 +72,7 @@
 }
 
 .glass-card-hover:hover {
-  background: oklch(0.20 0.025 280 / 50%);
+  background: oklch(0.20 0.025 45 / 50%);
   border-color: oklch(1 0 0 / 12%);
   box-shadow: 
     0 8px 32px oklch(0 0 0 / 30%),
@@ -80,8 +80,8 @@
 }
 
 /* Glow effects */
-.glow-purple {
-  box-shadow: 0 0 20px oklch(0.65 0.25 280 / 30%);
+.glow-orange {
+  box-shadow: 0 0 20px oklch(0.6 0.18 45 / 30%);
 }
 
 .glow-green {
@@ -94,7 +94,7 @@
 
 /* Gradient text */
 .text-gradient {
-  background: linear-gradient(135deg, oklch(0.85 0.15 280), oklch(0.75 0.2 320));
+  background: linear-gradient(135deg, oklch(0.75 0.15 45), oklch(0.65 0.2 30));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -122,8 +122,8 @@
   background: linear-gradient(90deg, oklch(0.75 0.18 85), oklch(0.8 0.2 70));
 }
 
-.progress-purple {
-  background: linear-gradient(90deg, oklch(0.6 0.25 280), oklch(0.65 0.28 300));
+.progress-orange {
+  background: linear-gradient(90deg, oklch(0.55 0.18 45), oklch(0.6 0.2 55));
 }
 
 .progress-red {
@@ -140,14 +140,14 @@
 }
 
 .sidebar-item.active {
-  background: linear-gradient(90deg, oklch(0.65 0.25 280 / 20%), transparent);
-  border-left: 2px solid oklch(0.65 0.25 280);
+  background: linear-gradient(90deg, oklch(0.6 0.18 45 / 20%), transparent);
+  border-left: 2px solid oklch(0.6 0.18 45);
 }
 
 /* Stat card gradient borders */
 .stat-card {
   position: relative;
-  background: oklch(0.16 0.02 280 / 50%);
+  background: oklch(0.16 0.02 45 / 50%);
   backdrop-filter: blur(12px);
   border-radius: var(--radius);
   overflow: hidden;

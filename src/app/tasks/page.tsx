@@ -82,7 +82,7 @@ export default function TasksPage() {
             <ArrowUpDown className="h-4 w-4" />
             Sort
           </button>
-          <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-500 hover:bg-purple-600 text-white text-sm font-medium transition-all glow-purple">
+          <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium transition-all glow-orange">
             <Plus className="h-4 w-4" />
             New Task
           </button>

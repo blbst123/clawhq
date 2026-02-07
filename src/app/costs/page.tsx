@@ -9,7 +9,7 @@ import {
 
 export default function CostsPage() {
   const modelBreakdown = [
-    { model: "Claude Opus", cost: "$28.50", tokens: "850K", percent: 62, color: "purple" },
+    { model: "Claude Opus", cost: "$28.50", tokens: "850K", percent: 62, color: "orange" },
     { model: "Claude Sonnet", cost: "$14.20", tokens: "1.2M", percent: 31, color: "blue" },
     { model: "Groq (Free)", cost: "$0.00", tokens: "350K", percent: 7, color: "green" },
   ];
@@ -38,8 +38,8 @@ export default function CostsPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <div className="stat-card p-5">
           <div className="flex items-start justify-between mb-3">
-            <div className="p-2 rounded-lg bg-purple-500/10">
-              <DollarSign className="h-5 w-5 text-purple-400" />
+            <div className="p-2 rounded-lg bg-orange-500/10">
+              <DollarSign className="h-5 w-5 text-orange-400" />
             </div>
             <div className="flex items-center gap-1 text-xs">
               <TrendingUp className="h-3 w-3 text-green-400" />
@@ -97,7 +97,7 @@ export default function CostsPage() {
                 <span className="text-xs text-white/50">${day.cost.toFixed(2)}</span>
                 <div className="w-full relative group">
                   <div 
-                    className="w-full rounded-t-lg bg-gradient-to-t from-purple-600 to-purple-400 transition-all group-hover:from-purple-500 group-hover:to-purple-300"
+                    className="w-full rounded-t-lg bg-gradient-to-t from-orange-600 to-orange-400 transition-all group-hover:from-orange-500 group-hover:to-orange-300"
                     style={{ height: `${(day.cost / maxCost) * 150}px` }}
                   />
                   {/* Tooltip */}
@@ -121,7 +121,7 @@ export default function CostsPage() {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-3">
                     <div className={`h-3 w-3 rounded-full ${
-                      item.color === "purple" ? "bg-purple-400" :
+                      item.color === "orange" ? "bg-orange-400" :
                       item.color === "blue" ? "bg-blue-400" : "bg-green-400"
                     }`} />
                     <span className="text-white font-medium">{item.model}</span>
@@ -134,7 +134,7 @@ export default function CostsPage() {
                 <div className="progress-bar h-2">
                   <div 
                     className={`progress-fill h-full ${
-                      item.color === "purple" ? "progress-purple" :
+                      item.color === "orange" ? "progress-orange" :
                       item.color === "blue" ? "bg-gradient-to-r from-blue-600 to-blue-400" :
                       "progress-green"
                     }`}
@@ -167,7 +167,7 @@ export default function CostsPage() {
           </div>
           <div className="p-4 rounded-lg bg-white/[0.02] border border-white/5">
             <p className="text-sm text-white/70">
-              Average cost per task: <span className="text-purple-400 font-medium">$0.38</span>
+              Average cost per task: <span className="text-orange-400 font-medium">$0.38</span>
             </p>
           </div>
           <div className="p-4 rounded-lg bg-white/[0.02] border border-white/5">
