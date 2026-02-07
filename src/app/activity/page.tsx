@@ -502,7 +502,7 @@ export default function ActivityPage() {
                 <span className="w-3" />
                 <span className="w-16">Time</span>
                 <span className="flex-1">Action</span>
-                <span className="w-28 text-right">Task</span>
+                <span className="w-36 text-right">Project</span>
                 <span className="w-20 text-right">Source</span>
                 <span className="w-16 text-right">Model</span>
                 <span className="w-14 text-right">Duration</span>
@@ -567,7 +567,18 @@ function CompactRow({ event, expanded, onToggle }: {
           event.type === "start" ? "text-blue-300/70" :
           "text-white/50"
         }`}>{event.action}</span>
-        <span className="w-28 text-right truncate text-white/25">{event.task}</span>
+        <span className="w-36 text-right truncate flex-shrink-0">
+          {event.project ? (
+            <>
+              <span className="text-white/35">{event.project}</span>
+              {event.task !== event.project && (
+                <span className="text-white/15"> › {event.task}</span>
+              )}
+            </>
+          ) : (
+            <span className="text-white/20">{event.task}</span>
+          )}
+        </span>
         <span className={`w-20 text-right ${config.text} text-[10px]`}>{config.label}</span>
         <span className="w-16 text-right text-white/20">{event.model || "—"}</span>
         <span className="w-14 text-right text-white/20">{event.duration || "—"}</span>
