@@ -1,179 +1,170 @@
-import { 
-  TrendingUp, 
-  TrendingDown,
+"use client";
+
+import { useState } from "react";
+import {
   DollarSign,
   Zap,
   Database,
-  Calendar
+  TrendingUp,
+  TrendingDown,
+  ChevronRight,
+  Lightbulb,
+  Sparkles,
+  BarChart3
 } from "lucide-react";
 
+const modelBreakdown = [
+  { model: "Claude Opus", cost: 28.50, tokens: "850K", percent: 62, color: "orange" },
+  { model: "Claude Sonnet", cost: 14.20, tokens: "1.2M", percent: 31, color: "blue" },
+  { model: "Groq (Free)", cost: 0.00, tokens: "350K", percent: 7, color: "green" },
+];
+
+const dailyCosts = [
+  { day: "Mon", cost: 2.45, tokens: "320K" },
+  { day: "Tue", cost: 3.12, tokens: "410K" },
+  { day: "Wed", cost: 2.89, tokens: "380K" },
+  { day: "Thu", cost: 2.67, tokens: "350K" },
+  { day: "Fri", cost: 3.45, tokens: "450K" },
+  { day: "Sat", cost: 1.98, tokens: "260K" },
+  { day: "Sun", cost: 2.24, tokens: "290K" },
+];
+
+const tips = [
+  { text: "62% of spend is on Opus. Consider using Sonnet for routine tasks.", highlight: "62%", color: "text-green-400" },
+  { text: "Average cost per task: $0.38", highlight: "$0.38", color: "text-orange-400" },
+  { text: "Projected monthly: ~$195 at current rate", highlight: "~$195", color: "text-yellow-400" },
+];
+
 export default function CostsPage() {
-  const modelBreakdown = [
-    { model: "Claude Opus", cost: "$28.50", tokens: "850K", percent: 62, color: "orange" },
-    { model: "Claude Sonnet", cost: "$14.20", tokens: "1.2M", percent: 31, color: "blue" },
-    { model: "Groq (Free)", cost: "$0.00", tokens: "350K", percent: 7, color: "green" },
-  ];
-
-  const dailyCosts = [
-    { day: "Mon", cost: 2.45, tokens: "320K" },
-    { day: "Tue", cost: 3.12, tokens: "410K" },
-    { day: "Wed", cost: 2.89, tokens: "380K" },
-    { day: "Thu", cost: 2.67, tokens: "350K" },
-    { day: "Fri", cost: 3.45, tokens: "450K" },
-    { day: "Sat", cost: 1.98, tokens: "260K" },
-    { day: "Sun", cost: 2.24, tokens: "290K" },
-  ];
-
+  const [expandedModel, setExpandedModel] = useState<string | null>(null);
   const maxCost = Math.max(...dailyCosts.map(d => d.cost));
 
   return (
-    <div className="p-8 min-h-screen">
+    <div className="h-screen flex flex-col">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white">Costs & Usage</h1>
-        <p className="text-white/50">Track API spend and token usage</p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <div className="stat-card p-5">
-          <div className="flex items-start justify-between mb-3">
-            <div className="p-2 rounded-lg bg-orange-500/10">
-              <DollarSign className="h-5 w-5 text-orange-400" />
+      <div className="flex-shrink-0 border-b border-white/5 bg-white/[0.01] px-6 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-amber-500/10">
+              <DollarSign className="h-6 w-6 text-amber-400" />
             </div>
-            <div className="flex items-center gap-1 text-xs">
-              <TrendingUp className="h-3 w-3 text-green-400" />
-              <span className="text-green-400">+8%</span>
+            <div>
+              <h1 className="text-xl font-bold text-white">Costs & Usage</h1>
+              <p className="text-sm text-white/40">API spend & token tracking</p>
             </div>
           </div>
-          <p className="text-2xl font-bold text-white mb-1">$2.45</p>
-          <p className="text-sm text-white/40">Today</p>
-        </div>
-
-        <div className="stat-card p-5">
-          <div className="flex items-start justify-between mb-3">
-            <div className="p-2 rounded-lg bg-blue-500/10">
-              <Calendar className="h-5 w-5 text-blue-400" />
-            </div>
-            <div className="flex items-center gap-1 text-xs">
-              <TrendingDown className="h-3 w-3 text-red-400" />
-              <span className="text-red-400">-3%</span>
-            </div>
+          <div className="flex items-center gap-2 text-xs">
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-300">
+              <DollarSign className="h-3.5 w-3.5" /> $2.45 today
+              <TrendingUp className="h-3 w-3 text-green-400 ml-1" />
+            </span>
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-300">
+              <BarChart3 className="h-3.5 w-3.5" /> $18.80 /wk
+            </span>
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-green-500/10 text-green-300">
+              <Zap className="h-3.5 w-3.5" /> $45.80 /mo
+            </span>
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.03] text-white/40">
+              <Database className="h-3.5 w-3.5" /> 2.4M tokens
+            </span>
           </div>
-          <p className="text-2xl font-bold text-white mb-1">$18.80</p>
-          <p className="text-sm text-white/40">This Week</p>
-        </div>
-
-        <div className="stat-card p-5">
-          <div className="flex items-start justify-between mb-3">
-            <div className="p-2 rounded-lg bg-green-500/10">
-              <Zap className="h-5 w-5 text-green-400" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-white mb-1">$45.80</p>
-          <p className="text-sm text-white/40">This Month</p>
-          <p className="text-xs text-white/30 mt-2">7 days in</p>
-        </div>
-
-        <div className="stat-card p-5">
-          <div className="flex items-start justify-between mb-3">
-            <div className="p-2 rounded-lg bg-yellow-500/10">
-              <Database className="h-5 w-5 text-yellow-400" />
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-white mb-1">2.4M</p>
-          <p className="text-sm text-white/40">Total Tokens</p>
-          <p className="text-xs text-white/30 mt-2">1.8M in / 600K out</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Daily Chart */}
-        <div className="glass-card rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-white mb-6">Daily Spend (This Week)</h2>
-          <div className="flex items-end gap-3 h-48">
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto">
+        {/* Daily Spend Chart */}
+        <div className="px-6 py-4 border-b border-white/5">
+          <div className="flex items-center gap-2 mb-3">
+            <BarChart3 className="h-3.5 w-3.5 text-orange-400" />
+            <span className="text-sm font-semibold text-white/60">Daily Spend</span>
+            <span className="text-[10px] text-white/20">This Week</span>
+          </div>
+          <div className="flex items-end gap-2 h-32">
             {dailyCosts.map((day, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-2">
-                <span className="text-xs text-white/50">${day.cost.toFixed(2)}</span>
-                <div className="w-full relative group">
-                  <div 
-                    className="w-full rounded-t-lg bg-gradient-to-t from-orange-600 to-orange-400 transition-all group-hover:from-orange-500 group-hover:to-orange-300"
-                    style={{ height: `${(day.cost / maxCost) * 150}px` }}
+              <div key={i} className="flex-1 flex flex-col items-center gap-1 group">
+                <span className="text-[10px] text-white/30 opacity-0 group-hover:opacity-100 transition-opacity">${day.cost.toFixed(2)}</span>
+                <div className="w-full relative">
+                  <div
+                    className="w-full rounded-t bg-gradient-to-t from-orange-600/80 to-orange-400/80 transition-all group-hover:from-orange-500 group-hover:to-orange-300"
+                    style={{ height: `${(day.cost / maxCost) * 100}px` }}
                   />
-                  {/* Tooltip */}
-                  <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-md rounded-lg px-3 py-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                    <p className="text-white font-medium">${day.cost.toFixed(2)}</p>
-                    <p className="text-white/50">{day.tokens} tokens</p>
-                  </div>
                 </div>
-                <span className="text-xs text-white/40">{day.day}</span>
+                <span className="text-[10px] text-white/30">{day.day}</span>
               </div>
             ))}
           </div>
         </div>
 
         {/* Model Breakdown */}
-        <div className="glass-card rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-white mb-6">Cost by Model</h2>
-          <div className="space-y-5">
-            {modelBreakdown.map((item, i) => (
-              <div key={i}>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <div className={`h-3 w-3 rounded-full ${
-                      item.color === "orange" ? "bg-orange-400" :
-                      item.color === "blue" ? "bg-blue-400" : "bg-green-400"
-                    }`} />
-                    <span className="text-white font-medium">{item.model}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-white">{item.cost}</span>
-                    <span className="text-white/40 text-sm ml-2">({item.percent}%)</span>
-                  </div>
-                </div>
-                <div className="progress-bar h-2">
-                  <div 
-                    className={`progress-fill h-full ${
-                      item.color === "orange" ? "progress-orange" :
-                      item.color === "blue" ? "bg-gradient-to-r from-blue-600 to-blue-400" :
-                      "progress-green"
+        <div className="px-6 py-3 border-b border-white/5">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles className="h-3.5 w-3.5 text-orange-400" />
+            <span className="text-sm font-semibold text-white/60">By Model</span>
+          </div>
+          {modelBreakdown.map((item, i) => (
+            <button
+              key={i}
+              onClick={() => setExpandedModel(expandedModel === item.model ? null : item.model)}
+              className="w-full text-left"
+            >
+              <div className={`flex items-center gap-3 px-2 py-2 rounded-lg transition-all hover:bg-white/[0.02] ${expandedModel === item.model ? "bg-white/[0.03]" : ""}`}>
+                <div className={`h-2 w-2 rounded-full flex-shrink-0 ${
+                  item.color === "orange" ? "bg-orange-400" :
+                  item.color === "blue" ? "bg-blue-400" : "bg-green-400"
+                }`} />
+                <span className="text-xs font-medium text-white/70 flex-1">{item.model}</span>
+                <div className="w-24 h-1.5 rounded-full bg-white/5 flex-shrink-0">
+                  <div
+                    className={`h-full rounded-full ${
+                      item.color === "orange" ? "bg-orange-500" :
+                      item.color === "blue" ? "bg-blue-500" : "bg-green-500"
                     }`}
                     style={{ width: `${item.percent}%` }}
                   />
                 </div>
-                <p className="text-xs text-white/30 mt-1">{item.tokens} tokens</p>
+                <span className="text-xs text-white/40 w-14 text-right">${item.cost.toFixed(2)}</span>
+                <span className="text-[10px] text-white/20 w-8 text-right">{item.percent}%</span>
+                <ChevronRight className={`h-3 w-3 text-white/15 transition-transform ${expandedModel === item.model ? "rotate-90" : ""}`} />
               </div>
-            ))}
-          </div>
-          
-          {/* Total */}
-          <div className="mt-6 pt-6 border-t border-white/5">
-            <div className="flex items-center justify-between">
-              <span className="text-white/50">Total This Month</span>
-              <span className="text-xl font-bold text-white">$45.80</span>
-            </div>
+              {expandedModel === item.model && (
+                <div className="ml-7 px-2 pb-2">
+                  <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5 grid grid-cols-3 gap-3">
+                    <div>
+                      <p className="text-[10px] text-white/25">Cost</p>
+                      <p className="text-xs text-white/60">${item.cost.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-white/25">Tokens</p>
+                      <p className="text-xs text-white/60">{item.tokens}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-white/25">Share</p>
+                      <p className="text-xs text-white/60">{item.percent}%</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </button>
+          ))}
+          <div className="flex items-center justify-between px-2 pt-2 mt-1 border-t border-white/5">
+            <span className="text-[10px] text-white/25">Total This Month</span>
+            <span className="text-sm font-bold text-white/70">$45.80</span>
           </div>
         </div>
-      </div>
 
-      {/* Cost Optimization Tips */}
-      <div className="mt-6 glass-card rounded-xl p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">💡 Cost Optimization</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-4 rounded-lg bg-white/[0.02] border border-white/5">
-            <p className="text-sm text-white/70">
-              <span className="text-green-400 font-medium">62%</span> of spend is on Opus. Consider using Sonnet for routine tasks.
-            </p>
+        {/* Cost Optimization */}
+        <div className="px-6 py-3">
+          <div className="flex items-center gap-2 mb-2">
+            <Lightbulb className="h-3.5 w-3.5 text-yellow-400" />
+            <span className="text-sm font-semibold text-white/60">Optimization Tips</span>
           </div>
-          <div className="p-4 rounded-lg bg-white/[0.02] border border-white/5">
-            <p className="text-sm text-white/70">
-              Average cost per task: <span className="text-orange-400 font-medium">$0.38</span>
-            </p>
-          </div>
-          <div className="p-4 rounded-lg bg-white/[0.02] border border-white/5">
-            <p className="text-sm text-white/70">
-              Projected monthly: <span className="text-yellow-400 font-medium">~$195</span> at current rate
-            </p>
+          <div className="space-y-1">
+            {tips.map((tip, i) => (
+              <div key={i} className="px-3 py-2 rounded-lg bg-white/[0.02] border border-white/5 hover:bg-white/[0.03] transition-all">
+                <p className="text-xs text-white/50">{tip.text}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>
