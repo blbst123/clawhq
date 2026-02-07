@@ -51,7 +51,7 @@ interface ActivityEvent {
   project?: string;
 }
 
-type ViewMode = "compact" | "timeline";
+type ViewMode = "timeline" | "tasks";
 
 // ─── Mock data ───
 const allActivity: ActivityEvent[] = [
@@ -225,7 +225,7 @@ function getSourceCategory(source: TriggerSource): SourceCategory {
 }
 
 export default function ActivityPage() {
-  const [view, setView] = useState<ViewMode>("compact");
+  const [view, setView] = useState<ViewMode>("timeline");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSourceFilter, setActiveSourceFilter] = useState<SourceCategory | null>(null);
@@ -295,22 +295,22 @@ export default function ActivityPage() {
           {/* View switcher */}
           <div className="flex items-center gap-1 p-1 rounded-lg bg-white/5">
             <button
-              onClick={() => setView("compact")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                view === "compact" ? "bg-orange-500/20 text-orange-300" : "text-white/40 hover:text-white/60"
-              }`}
-            >
-              <LayoutList className="h-3.5 w-3.5" />
-              Compact
-            </button>
-            <button
               onClick={() => setView("timeline")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                 view === "timeline" ? "bg-orange-500/20 text-orange-300" : "text-white/40 hover:text-white/60"
               }`}
             >
-              <GitBranch className="h-3.5 w-3.5" />
+              <LayoutList className="h-3.5 w-3.5" />
               Timeline
+            </button>
+            <button
+              onClick={() => setView("tasks")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                view === "tasks" ? "bg-orange-500/20 text-orange-300" : "text-white/40 hover:text-white/60"
+              }`}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Tasks
             </button>
           </div>
         </div>
@@ -496,8 +496,8 @@ export default function ActivityPage() {
               </div>
             </div>
 
-            {/* Compact header row */}
-            {view === "compact" && (
+            {/* Timeline header row */}
+            {view === "timeline" && (
               <div className="px-6 py-1.5 flex items-center gap-3 text-[10px] text-white/20 uppercase tracking-wider border-b border-white/5">
                 <span className="w-3" />
                 <span className="w-16">Time</span>
@@ -509,23 +509,40 @@ export default function ActivityPage() {
               </div>
             )}
 
-            {events.map((event) => (
-              view === "compact" ? (
-                <CompactRow
-                  key={event.id}
-                  event={event}
-                  expanded={expandedId === event.id}
-                  onToggle={() => setExpandedId(expandedId === event.id ? null : event.id)}
-                />
-              ) : (
-                <TimelineRow
-                  key={event.id}
-                  event={event}
-                  expanded={expandedId === event.id}
-                  onToggle={() => setExpandedId(expandedId === event.id ? null : event.id)}
-                />
-              )
+            {view === "timeline" && events.map((event) => (
+              <CompactRow
+                key={event.id}
+                event={event}
+                expanded={expandedId === event.id}
+                onToggle={() => setExpandedId(expandedId === event.id ? null : event.id)}
+              />
             ))}
+
+            {view === "tasks" && (() => {
+              // Group into task cards: only show "complete" and "running" as cards, collapse "action"/"info" steps
+              const taskCards = events.filter(e => e.type === "complete" || e.type === "start" || e.type === "error");
+              const backgroundCount = events.length - taskCards.length;
+              return (
+                <>
+                  <div className="p-3 space-y-2">
+                    {taskCards.map((event) => (
+                      <TaskCard
+                        key={event.id}
+                        event={event}
+                        steps={events.filter(e => e.task === event.task && e.id !== event.id)}
+                        expanded={expandedId === event.id}
+                        onToggle={() => setExpandedId(expandedId === event.id ? null : event.id)}
+                      />
+                    ))}
+                    {backgroundCount > 0 && (
+                      <div className="rounded-lg border border-white/5 bg-white/[0.01] px-4 py-2 flex items-center justify-between">
+                        <span className="text-[10px] text-white/20">+ {backgroundCount} background steps</span>
+                      </div>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         ))}
 
@@ -702,6 +719,81 @@ function TimelineRow({ event, expanded, onToggle }: {
           <div className="mt-3 pt-3 border-t border-white/5">
             <SourceBadge source={event.source} />
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Task Card (Option A) ───
+function TaskCard({ event, steps, expanded, onToggle }: {
+  event: ActivityEvent;
+  steps: ActivityEvent[];
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const isRunning = event.type === "start";
+  const isError = event.type === "error";
+
+  return (
+    <div className={`rounded-xl border transition-all ${
+      isRunning ? "border-orange-500/15 bg-orange-500/[0.03]" :
+      isError ? "border-red-500/20 bg-red-500/[0.03]" :
+      "border-white/5 bg-white/[0.02] hover:border-white/10"
+    }`}>
+      <button onClick={onToggle} className="w-full text-left p-4">
+        <div className="flex items-start justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <div className={`h-2 w-2 rounded-full ${
+              isRunning ? "bg-orange-400 animate-pulse" :
+              isError ? "bg-red-400" : "bg-green-400"
+            }`} />
+            <h3 className={`text-sm font-semibold ${
+              isRunning ? "text-orange-200" : isError ? "text-red-300" : "text-white"
+            }`}>{event.action}</h3>
+          </div>
+          <div className="text-right flex-shrink-0">
+            <p className="text-xs text-white/30">{event.time}</p>
+            {event.duration && <p className="text-[10px] text-white/15">{event.duration}</p>}
+          </div>
+        </div>
+
+        {event.description && (
+          <p className="text-xs text-white/40 ml-4 mb-2">{event.description}</p>
+        )}
+
+        {/* Meta row */}
+        <div className="flex items-center gap-2 ml-4">
+          <SourceBadge source={event.source} compact />
+          {event.project && <span className="text-[10px] text-white/20">{event.project}</span>}
+          {event.model && <span className="text-[10px] text-white/20">{event.model}</span>}
+          {event.cost !== undefined && event.cost > 0 && <span className="text-[10px] text-white/20">${event.cost.toFixed(2)}</span>}
+          {event.tokens && <span className="text-[10px] text-white/15">{((event.tokens.in + event.tokens.out) / 1000).toFixed(1)}K tokens</span>}
+        </div>
+
+        {/* Steps count */}
+        {steps.length > 0 && (
+          <div className="ml-4 mt-2 pt-2 border-t border-white/5">
+            <span className="text-[10px] text-white/20 flex items-center gap-1">
+              <ChevronRight className={`h-2.5 w-2.5 transition-transform ${expanded ? "rotate-90" : ""}`} />
+              {steps.length} steps
+              {event.duration && ` · ${event.duration} total`}
+            </span>
+          </div>
+        )}
+      </button>
+
+      {/* Expanded steps */}
+      {expanded && steps.length > 0 && (
+        <div className="px-4 pb-3 ml-4 space-y-0.5">
+          {steps.map(step => (
+            <div key={step.id} className="flex items-center gap-2 py-1 text-[10px]">
+              <div className={`h-1 w-1 rounded-full ${getTypeDot(step.type)}`} />
+              <span className="text-white/30 w-14">{step.time}</span>
+              <span className="text-white/40">{step.action}</span>
+              {step.model && <span className="text-white/15 ml-auto">{step.model}</span>}
+            </div>
+          ))}
         </div>
       )}
     </div>
