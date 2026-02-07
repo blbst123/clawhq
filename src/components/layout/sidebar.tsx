@@ -12,13 +12,15 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
-  CalendarDays
+  CalendarDays,
+  Zap
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Activity", href: "/activity", icon: Zap },
   { name: "Calendar", href: "/calendar", icon: CalendarDays },
   { name: "Tasks", href: "/tasks", icon: ListTodo },
   { name: "Costs", href: "/costs", icon: DollarSign },
