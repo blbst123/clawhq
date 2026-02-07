@@ -14,6 +14,7 @@ import {
   Activity,
   Terminal,
   Search,
+  Filter,
   ChevronDown,
   ChevronRight,
   LayoutList,
@@ -228,12 +229,19 @@ export default function ActivityPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSourceFilter, setActiveSourceFilter] = useState<SourceCategory | null>(null);
+  const [projectFilter, setProjectFilter] = useState<string | null>(null);
+  const [modelFilter, setModelFilter] = useState<string | null>(null);
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
 
   // Counts by source category
   const sourceCounts: Record<SourceCategory, number> = { cron: 0, chat: 0, backlog: 0, webhook: 0, system: 0 };
   for (const e of allActivity) {
     sourceCounts[getSourceCategory(e.source)]++;
   }
+
+  // Unique projects and models for filter dropdown
+  const allProjects = [...new Set(allActivity.map(e => e.project).filter(Boolean))] as string[];
+  const allModels = [...new Set(allActivity.map(e => e.model).filter(Boolean))] as string[];
 
   // Filter
   let filtered = allActivity;
@@ -249,6 +257,14 @@ export default function ActivityPage() {
   if (activeSourceFilter) {
     filtered = filtered.filter(e => getSourceCategory(e.source) === activeSourceFilter);
   }
+  if (projectFilter) {
+    filtered = filtered.filter(e => e.project === projectFilter);
+  }
+  if (modelFilter) {
+    filtered = filtered.filter(e => e.model === modelFilter);
+  }
+
+  const activeFilterCount = [activeSourceFilter, projectFilter, modelFilter].filter(Boolean).length;
 
   // Group by date for rendering
   const dateGroups: { date: string; events: ActivityEvent[] }[] = [];
@@ -299,50 +315,152 @@ export default function ActivityPage() {
           </div>
         </div>
 
-        {/* Source category chips — clickable filters */}
-        <div className="flex items-center gap-2 mb-4">
-          {/* "All" chip */}
-          <button
-            onClick={() => setActiveSourceFilter(null)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all ${
-              activeSourceFilter === null
-                ? "bg-orange-500/15 ring-1 ring-orange-500/30"
-                : "bg-white/[0.03] hover:bg-white/[0.05]"
-            }`}
-          >
-            <Zap className={`h-4 w-4 ${activeSourceFilter === null ? "text-orange-400" : "text-white/40"}`} />
-            <span className={`text-lg font-bold ${activeSourceFilter === null ? "text-white" : "text-white/70"}`}>
-              {allActivity.length}
-            </span>
-            <span className={`text-xs ${activeSourceFilter === null ? "text-orange-300/70" : "text-white/30"}`}>
-              total
-            </span>
-          </button>
+        {/* Source chips + Filter button row */}
+        <div className="flex items-center gap-3 mb-3">
+          {/* Source chips — smaller/sleeker */}
+          <div className="flex items-center gap-1.5 flex-1">
+            <button
+              onClick={() => setActiveSourceFilter(null)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs transition-all ${
+                activeSourceFilter === null
+                  ? "bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/25"
+                  : "bg-white/[0.03] text-white/40 hover:bg-white/[0.06]"
+              }`}
+            >
+              <span className="font-bold tabular-nums">{allActivity.length}</span>
+              <span className="opacity-70">All</span>
+            </button>
 
-          {/* Source category chips */}
-          {(Object.entries(sourceCategoryConfig) as [SourceCategory, typeof sourceCategoryConfig[SourceCategory]][]).map(([key, config]) => {
-            const count = sourceCounts[key];
-            if (count === 0) return null;
-            const isActive = activeSourceFilter === key;
-            return (
-              <button
-                key={key}
-                onClick={() => setActiveSourceFilter(isActive ? null : key)}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-all ${
-                  isActive ? config.activeBg : `${config.bg} hover:bg-white/[0.05]`
-                }`}
-              >
-                <config.icon className={`h-4 w-4 ${isActive ? config.activeText : config.text}`} />
-                <span className={`text-lg font-bold ${isActive ? "text-white" : "text-white/70"}`}>
-                  {count}
+            {(Object.entries(sourceCategoryConfig) as [SourceCategory, typeof sourceCategoryConfig[SourceCategory]][]).map(([key, config]) => {
+              const count = sourceCounts[key];
+              if (count === 0) return null;
+              const isActive = activeSourceFilter === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setActiveSourceFilter(isActive ? null : key)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs transition-all ${
+                    isActive ? `${config.activeBg} ${config.activeText}` : `bg-white/[0.03] text-white/40 hover:bg-white/[0.06]`
+                  }`}
+                >
+                  <config.icon className="h-3 w-3" />
+                  <span className="font-bold tabular-nums">{count}</span>
+                  <span className="opacity-70">{config.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Filter button */}
+          <div className="relative">
+            <button
+              onClick={() => setShowFilterMenu(!showFilterMenu)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all border ${
+                activeFilterCount > 0
+                  ? "bg-orange-500/10 border-orange-500/20 text-orange-300"
+                  : "bg-white/[0.03] border-white/5 text-white/40 hover:bg-white/[0.06] hover:text-white/60"
+              }`}
+            >
+              <Filter className="h-3.5 w-3.5" />
+              <span>Filter</span>
+              {activeFilterCount > 0 && (
+                <span className="ml-0.5 h-4 w-4 rounded-full bg-orange-500/30 text-[10px] font-bold flex items-center justify-center">
+                  {activeFilterCount}
                 </span>
-                <span className={`text-xs ${isActive ? config.activeText : "text-white/30"}`}>
-                  {config.label}
-                </span>
-              </button>
-            );
-          })}
+              )}
+              <ChevronDown className={`h-3 w-3 transition-transform ${showFilterMenu ? "rotate-180" : ""}`} />
+            </button>
+
+            {/* Filter dropdown */}
+            {showFilterMenu && (
+              <div className="absolute right-0 top-full mt-1 w-64 rounded-xl bg-[#1a1614] border border-white/10 shadow-2xl shadow-black/40 z-50 overflow-hidden">
+                {/* Project filter */}
+                <div className="p-3 border-b border-white/5">
+                  <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2">Project</p>
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      onClick={() => setProjectFilter(null)}
+                      className={`text-[11px] px-2 py-0.5 rounded-md transition-all ${
+                        projectFilter === null ? "bg-orange-500/20 text-orange-300" : "text-white/30 hover:bg-white/5"
+                      }`}
+                    >
+                      All
+                    </button>
+                    {allProjects.map(p => (
+                      <button
+                        key={p}
+                        onClick={() => setProjectFilter(projectFilter === p ? null : p)}
+                        className={`text-[11px] px-2 py-0.5 rounded-md transition-all ${
+                          projectFilter === p ? "bg-orange-500/20 text-orange-300" : "text-white/30 hover:bg-white/5"
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Model filter */}
+                <div className="p-3 border-b border-white/5">
+                  <p className="text-[10px] text-white/30 uppercase tracking-wider mb-2">Model</p>
+                  <div className="flex flex-wrap gap-1">
+                    <button
+                      onClick={() => setModelFilter(null)}
+                      className={`text-[11px] px-2 py-0.5 rounded-md transition-all ${
+                        modelFilter === null ? "bg-orange-500/20 text-orange-300" : "text-white/30 hover:bg-white/5"
+                      }`}
+                    >
+                      All
+                    </button>
+                    {allModels.map(m => (
+                      <button
+                        key={m}
+                        onClick={() => setModelFilter(modelFilter === m ? null : m)}
+                        className={`text-[11px] px-2 py-0.5 rounded-md transition-all flex items-center gap-1 ${
+                          modelFilter === m ? "bg-orange-500/20 text-orange-300" : "text-white/30 hover:bg-white/5"
+                        }`}
+                      >
+                        <Sparkles className="h-2.5 w-2.5" /> {m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Clear + close */}
+                <div className="p-2 flex items-center justify-between">
+                  <button
+                    onClick={() => { setProjectFilter(null); setModelFilter(null); setActiveSourceFilter(null); }}
+                    className="text-[11px] text-white/25 hover:text-white/40 px-2 py-1"
+                  >
+                    Clear all
+                  </button>
+                  <button
+                    onClick={() => setShowFilterMenu(false)}
+                    className="text-[11px] text-orange-400 hover:text-orange-300 px-2 py-1"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Active filter pills */}
+        {(projectFilter || modelFilter) && (
+          <div className="flex items-center gap-1.5 mb-3">
+            {projectFilter && (
+              <button onClick={() => setProjectFilter(null)} className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-300 hover:bg-orange-500/20">
+                {projectFilter} <X className="h-2.5 w-2.5" />
+              </button>
+            )}
+            {modelFilter && (
+              <button onClick={() => setModelFilter(null)} className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-300 hover:bg-orange-500/20">
+                <Sparkles className="h-2 w-2" /> {modelFilter} <X className="h-2.5 w-2.5" />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Search */}
         <div className="relative">
