@@ -1,63 +1,104 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { MessageSquare, Send } from "lucide-react";
+import { Send, Paperclip, Smile, MoreHorizontal } from "lucide-react";
 
 export default function ChatPage() {
+  const messages = [
+    {
+      id: 1,
+      sender: "bill",
+      message: "Let's go with ClawHQ",
+      time: "3:42pm",
+    },
+    {
+      id: 2,
+      sender: "lolo",
+      message: "ClawHQ it is! 🦞 Setting up the project now. I'll scaffold it with Next.js 14, Tailwind, and shadcn/ui.",
+      time: "3:42pm",
+    },
+    {
+      id: 3,
+      sender: "bill", 
+      message: "Are you able to deploy this to vercel like you did with agent blueprints",
+      time: "4:05pm",
+    },
+    {
+      id: 4,
+      sender: "lolo",
+      message: "Yes! Just deployed it. Live at https://clawhq.vercel.app 🎉\n\nAll pages are working:\n• Dashboard with stats\n• Tasks kanban board\n• Costs breakdown\n• Cron jobs list\n• Settings",
+      time: "4:15pm",
+    },
+  ];
+
   return (
-    <div className="p-8 h-full flex flex-col">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white">Chat</h1>
-        <p className="text-neutral-400">Direct communication with Lolo</p>
-      </div>
-
-      <Card className="bg-neutral-900 border-neutral-800 flex-1 flex flex-col">
-        <CardHeader className="border-b border-neutral-800">
-          <CardTitle className="text-white flex items-center gap-2">
-            <MessageSquare className="h-5 w-5" />
-            Main Session
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 p-4 flex flex-col">
-          {/* Messages Area */}
-          <div className="flex-1 space-y-4 overflow-auto mb-4">
-            <div className="flex gap-3">
-              <div className="h-8 w-8 rounded-full bg-purple-600 flex items-center justify-center text-white text-sm">
-                B
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="p-4 border-b border-white/5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-medium">
+                L
               </div>
-              <div className="flex-1">
-                <p className="text-sm text-neutral-400 mb-1">Bill · 3:42pm</p>
-                <div className="bg-neutral-800 rounded-lg p-3">
-                  <p className="text-white">Let&apos;s go with ClawHQ</p>
-                </div>
-              </div>
+              <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 border-2 border-[#1a1625]" />
             </div>
-
-            <div className="flex gap-3">
-              <div className="h-8 w-8 rounded-full bg-green-600 flex items-center justify-center text-lg">
-                🦞
-              </div>
-              <div className="flex-1">
-                <p className="text-sm text-neutral-400 mb-1">Lolo · 3:42pm</p>
-                <div className="bg-neutral-800 rounded-lg p-3">
-                  <p className="text-white">ClawHQ it is! 🦞 Setting up the project now...</p>
-                </div>
-              </div>
+            <div>
+              <h2 className="font-semibold text-white">Lolo</h2>
+              <p className="text-xs text-green-400">Online • Main Session</p>
             </div>
           </div>
+          <button className="p-2 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-colors">
+            <MoreHorizontal className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
 
-          {/* Input Area */}
-          <div className="flex gap-2">
+      {/* Messages */}
+      <div className="flex-1 overflow-auto p-6 space-y-6">
+        {messages.map((msg) => (
+          <div key={msg.id} className={`flex gap-3 ${msg.sender === 'bill' ? 'flex-row-reverse' : ''}`}>
+            <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium shrink-0 ${
+              msg.sender === 'bill' 
+                ? 'bg-gradient-to-br from-blue-500 to-cyan-500 text-white'
+                : 'bg-gradient-to-br from-purple-500 to-pink-500 text-white'
+            }`}>
+              {msg.sender === 'bill' ? 'B' : '🦞'}
+            </div>
+            <div className={`max-w-[70%] ${msg.sender === 'bill' ? 'items-end' : ''}`}>
+              <div className={`rounded-2xl px-4 py-3 ${
+                msg.sender === 'bill'
+                  ? 'bg-purple-500/20 text-white rounded-tr-sm'
+                  : 'glass-card rounded-tl-sm'
+              }`}>
+                <p className="text-sm whitespace-pre-wrap text-white/90">{msg.message}</p>
+              </div>
+              <p className={`text-xs text-white/30 mt-1 ${msg.sender === 'bill' ? 'text-right' : ''}`}>
+                {msg.time}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Input */}
+      <div className="p-4 border-t border-white/5">
+        <div className="flex items-center gap-3">
+          <button className="p-2 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-colors">
+            <Paperclip className="h-5 w-5" />
+          </button>
+          <div className="flex-1 relative">
             <input 
               type="text"
               placeholder="Message Lolo..."
-              className="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-4 py-2 text-white placeholder-neutral-500 focus:outline-none focus:border-purple-500"
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/20 transition-all"
             />
-            <Button className="bg-purple-600 hover:bg-purple-700">
-              <Send className="h-4 w-4" />
-            </Button>
+            <button className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-lg hover:bg-white/5 text-white/40 hover:text-white transition-colors">
+              <Smile className="h-5 w-5" />
+            </button>
           </div>
-        </CardContent>
-      </Card>
+          <button className="p-3 rounded-xl bg-purple-500 hover:bg-purple-600 text-white transition-all glow-purple">
+            <Send className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

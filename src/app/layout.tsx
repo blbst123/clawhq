@@ -26,9 +26,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-neutral-950`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <div className="flex h-screen">
+        <div className="flex h-screen bg-gradient-dark">
           <Sidebar />
           <main className="flex-1 overflow-auto">
             {children}

@@ -1,94 +1,181 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { 
+  CheckCircle2, 
+  XCircle, 
+  ExternalLink, 
+  Copy,
+  Settings2,
+  Plug,
+  Bot,
+  Shield
+} from "lucide-react";
 
 export default function SettingsPage() {
   return (
-    <div className="p-8">
+    <div className="p-8 min-h-screen max-w-4xl">
+      {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-white">Settings</h1>
-        <p className="text-neutral-400">Configure ClawHQ and connected services</p>
+        <p className="text-white/50">Configure ClawHQ and connected services</p>
       </div>
 
-      <div className="space-y-6 max-w-2xl">
+      <div className="space-y-6">
         {/* Connection Status */}
-        <Card className="bg-neutral-900 border-neutral-800">
-          <CardHeader>
-            <CardTitle className="text-white">OpenClaw Connection</CardTitle>
-            <CardDescription className="text-neutral-400">Gateway status and configuration</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-neutral-400">Gateway URL</span>
-              <code className="text-sm bg-neutral-800 px-2 py-1 rounded text-white">
-                http://localhost:18789
-              </code>
+        <div className="glass-card rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-white/5 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-purple-500/10">
+              <Plug className="h-5 w-5 text-purple-400" />
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-neutral-400">Status</span>
-              <Badge className="bg-green-600">Connected</Badge>
+            <div>
+              <h2 className="font-semibold text-white">OpenClaw Connection</h2>
+              <p className="text-sm text-white/40">Gateway status and configuration</p>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-neutral-400">Version</span>
+          </div>
+          <div className="p-4 space-y-4">
+            <div className="flex items-center justify-between py-2">
+              <span className="text-white/60">Gateway URL</span>
+              <div className="flex items-center gap-2">
+                <code className="text-sm bg-white/5 px-3 py-1.5 rounded-lg text-purple-300 font-mono">
+                  http://localhost:18789
+                </code>
+                <button className="p-1.5 rounded hover:bg-white/5 text-white/40 hover:text-white transition-colors">
+                  <Copy className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center justify-between py-2">
+              <span className="text-white/60">Status</span>
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-green-400 glow-green" />
+                <span className="text-green-400">Connected</span>
+              </div>
+            </div>
+            <div className="flex items-center justify-between py-2">
+              <span className="text-white/60">Version</span>
               <span className="text-white">2026.2.2-3</span>
             </div>
-          </CardContent>
-        </Card>
+            <div className="flex items-center justify-between py-2">
+              <span className="text-white/60">Uptime</span>
+              <span className="text-white">2d 14h 32m</span>
+            </div>
+          </div>
+        </div>
 
         {/* Connected Channels */}
-        <Card className="bg-neutral-900 border-neutral-800">
-          <CardHeader>
-            <CardTitle className="text-white">Connected Channels</CardTitle>
-            <CardDescription className="text-neutral-400">Messaging platforms Lolo can access</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <div className="glass-card rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-white/5 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-blue-500/10">
+              <Settings2 className="h-5 w-5 text-blue-400" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-white">Connected Channels</h2>
+              <p className="text-sm text-white/40">Messaging platforms Lolo can access</p>
+            </div>
+          </div>
+          <div className="divide-y divide-white/5">
             {[
-              { name: "Discord", status: "connected", account: "Bill HQ" },
-              { name: "Telegram", status: "connected", account: "@bill_112" },
-              { name: "Signal", status: "not configured", account: null },
+              { name: "Discord", status: "connected", account: "Bill HQ Server", icon: "🎮" },
+              { name: "Telegram", status: "connected", account: "@bill_112", icon: "✈️" },
+              { name: "Signal", status: "not configured", account: null, icon: "🔒" },
+              { name: "WhatsApp", status: "not configured", account: null, icon: "💬" },
             ].map((channel, i) => (
-              <div key={i} className="flex items-center justify-between py-2">
-                <div>
-                  <p className="text-white">{channel.name}</p>
-                  {channel.account && (
-                    <p className="text-sm text-neutral-500">{channel.account}</p>
-                  )}
+              <div key={i} className="p-4 flex items-center justify-between hover:bg-white/[0.02] transition-colors">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{channel.icon}</span>
+                  <div>
+                    <p className="text-white font-medium">{channel.name}</p>
+                    {channel.account && (
+                      <p className="text-sm text-white/40">{channel.account}</p>
+                    )}
+                  </div>
                 </div>
-                <Badge 
-                  variant="outline"
-                  className={channel.status === "connected" 
-                    ? "border-green-500 text-green-500" 
-                    : "border-neutral-500 text-neutral-500"
-                  }
-                >
-                  {channel.status}
-                </Badge>
+                <div className="flex items-center gap-3">
+                  {channel.status === "connected" ? (
+                    <div className="flex items-center gap-2 text-green-400">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span className="text-sm">Connected</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-white/30">
+                      <XCircle className="h-4 w-4" />
+                      <span className="text-sm">Not configured</span>
+                    </div>
+                  )}
+                  <button className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-xs transition-all">
+                    {channel.status === "connected" ? "Manage" : "Connect"}
+                  </button>
+                </div>
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* Agent Configuration */}
-        <Card className="bg-neutral-900 border-neutral-800">
-          <CardHeader>
-            <CardTitle className="text-white">Agent Configuration</CardTitle>
-            <CardDescription className="text-neutral-400">Active agents and their settings</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between py-2 border-b border-neutral-800">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">🦞</span>
+        <div className="glass-card rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-white/5 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-green-500/10">
+              <Bot className="h-5 w-5 text-green-400" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-white">Agent Configuration</h2>
+              <p className="text-sm text-white/40">Active agents and their settings</p>
+            </div>
+          </div>
+          <div className="p-4">
+            <div className="flex items-center justify-between p-4 rounded-lg bg-white/[0.02] border border-white/5">
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-2xl">
+                    🦞
+                  </div>
+                  <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-green-500 border-2 border-[#1a1625]" />
+                </div>
                 <div>
-                  <p className="text-white font-medium">Lolo</p>
-                  <p className="text-sm text-neutral-500">Main agent</p>
+                  <p className="text-white font-semibold">Lolo</p>
+                  <p className="text-sm text-white/40">Main Agent • claude-opus-4</p>
                 </div>
               </div>
-              <Button variant="outline" size="sm" className="text-neutral-400 border-neutral-700">
-                Configure
-              </Button>
+              <div className="flex items-center gap-3">
+                <button className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-sm transition-all flex items-center gap-2">
+                  <ExternalLink className="h-4 w-4" />
+                  View Workspace
+                </button>
+                <button className="px-3 py-1.5 rounded-lg bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 text-sm transition-all">
+                  Configure
+                </button>
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+
+        {/* Security */}
+        <div className="glass-card rounded-xl overflow-hidden">
+          <div className="p-4 border-b border-white/5 flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-yellow-500/10">
+              <Shield className="h-5 w-5 text-yellow-400" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-white">Security</h2>
+              <p className="text-sm text-white/40">API keys and access control</p>
+            </div>
+          </div>
+          <div className="p-4 space-y-4">
+            <div className="flex items-center justify-between py-2">
+              <span className="text-white/60">Gateway Token</span>
+              <div className="flex items-center gap-2">
+                <code className="text-sm bg-white/5 px-3 py-1.5 rounded-lg text-white/40 font-mono">
+                  ••••••••••••••••
+                </code>
+                <button className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-xs transition-all">
+                  Reveal
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center justify-between py-2">
+              <span className="text-white/60">Last Token Rotation</span>
+              <span className="text-white/40">Never</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
