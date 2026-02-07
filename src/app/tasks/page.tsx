@@ -1,7 +1,20 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-const columns = [
+interface Task {
+  title: string;
+  priority: string;
+  source: string;
+  time?: string;
+}
+
+interface Column {
+  title: string;
+  color: string;
+  tasks: Task[];
+}
+
+const columns: Column[] = [
   { 
     title: "Backlog", 
     color: "bg-neutral-600",
