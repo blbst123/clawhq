@@ -1,43 +1,121 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   DollarSign,
-  Zap,
-  Database,
   TrendingUp,
   TrendingDown,
-  ChevronRight,
-  Lightbulb,
-  Sparkles,
-  BarChart3
+  BarChart3,
+  Loader2,
+  WifiOff,
+  Calendar,
 } from "lucide-react";
+import { useGateway } from "@/lib/gateway-context";
 
-const modelBreakdown = [
-  { model: "Claude Opus", cost: 28.50, tokens: "850K", percent: 62, color: "orange" },
-  { model: "Claude Sonnet", cost: 14.20, tokens: "1.2M", percent: 31, color: "blue" },
-  { model: "Groq (Free)", cost: 0.00, tokens: "350K", percent: 7, color: "green" },
-];
+interface DailyCost {
+  date: string;
+  totalTokens: number;
+  totalCost: number;
+  inputCost: number;
+  outputCost: number;
+  cacheReadCost: number;
+  cacheWriteCost: number;
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+}
 
-const dailyCosts = [
-  { day: "Mon", cost: 2.45, tokens: "320K" },
-  { day: "Tue", cost: 3.12, tokens: "410K" },
-  { day: "Wed", cost: 2.89, tokens: "380K" },
-  { day: "Thu", cost: 2.67, tokens: "350K" },
-  { day: "Fri", cost: 3.45, tokens: "450K" },
-  { day: "Sat", cost: 1.98, tokens: "260K" },
-  { day: "Sun", cost: 2.24, tokens: "290K" },
-];
+interface ModelCost {
+  model: string;
+  provider?: string;
+  count: number;
+  totalCost: number;
+  inputCost: number;
+  outputCost: number;
+  cacheReadCost: number;
+  cacheWriteCost: number;
+  totalTokens: number;
+}
 
-const tips = [
-  { text: "62% of spend is on Opus. Consider using Sonnet for routine tasks.", highlight: "62%", color: "text-green-400" },
-  { text: "Average cost per task: $0.38", highlight: "$0.38", color: "text-orange-400" },
-  { text: "Projected monthly: ~$195 at current rate", highlight: "~$195", color: "text-yellow-400" },
-];
+function formatCost(n: number): string {
+  if (n < 0.01) return "<$0.01";
+  return "$" + n.toFixed(2);
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+  if (n >= 1000) return (n / 1000).toFixed(0) + "K";
+  return String(n);
+}
+
+function formatDate(d: string): string {
+  const date = new Date(d + "T00:00:00");
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 
 export default function CostsPage() {
-  const [expandedModel, setExpandedModel] = useState<string | null>(null);
-  const maxCost = Math.max(...dailyCosts.map(d => d.cost));
+  const { rpc, status: connStatus } = useGateway();
+  const [daily, setDaily] = useState<DailyCost[]>([]);
+  const [modelCosts, setModelCosts] = useState<ModelCost[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (connStatus !== "connected") return;
+    setLoading(true);
+
+    const fetchCosts = rpc.getUsageCost().then((data) => {
+      const d = data as unknown as { daily: DailyCost[] };
+      setDaily(d.daily || []);
+    }).catch(() => {});
+
+    const fetchModels = rpc.getSessionUsage({ limit: 500 }).then((data) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const d = data as any;
+      const byModel: Array<{ model?: string; provider?: string; count?: number; totals?: { totalCost?: number; inputCost?: number; outputCost?: number; cacheReadCost?: number; cacheWriteCost?: number; totalTokens?: number } }> = d?.aggregates?.byModel || [];
+      const result: ModelCost[] = byModel.map((m) => ({
+        model: m.model || "unknown",
+        provider: m.provider,
+        count: m.count || 0,
+        totalCost: m.totals?.totalCost || 0,
+        inputCost: m.totals?.inputCost || 0,
+        outputCost: m.totals?.outputCost || 0,
+        cacheReadCost: m.totals?.cacheReadCost || 0,
+        cacheWriteCost: m.totals?.cacheWriteCost || 0,
+        totalTokens: m.totals?.totalTokens || 0,
+      }));
+      setModelCosts(result.sort((a, b) => b.totalCost - a.totalCost));
+    }).catch(() => {});
+
+    Promise.all([fetchCosts, fetchModels]).finally(() => setLoading(false));
+  }, [connStatus, rpc]);
+
+  if (connStatus !== "connected") {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <WifiOff className="h-8 w-8 text-white/20 mx-auto" />
+          <p className="text-sm text-white/40">Connect to gateway to view costs</p>
+          <a href="/settings" className="text-xs text-orange-400 hover:text-orange-300">Go to Settings →</a>
+        </div>
+      </div>
+    );
+  }
+
+  const totalCost = daily.reduce((s, d) => s + d.totalCost, 0);
+  const totalTokens = daily.reduce((s, d) => s + d.totalTokens, 0);
+  const today = daily[daily.length - 1];
+  const yesterday = daily.length >= 2 ? daily[daily.length - 2] : null;
+  const costTrend = today && yesterday ? today.totalCost - yesterday.totalCost : 0;
+  const last7 = daily.slice(-7);
+  const last7Cost = last7.reduce((s, d) => s + d.totalCost, 0);
+  const maxDailyCost = Math.max(...daily.map(d => d.totalCost), 0.01);
+
+  // Cost breakdown
+  const totalInput = daily.reduce((s, d) => s + d.inputCost, 0);
+  const totalOutput = daily.reduce((s, d) => s + d.outputCost, 0);
+  const totalCacheRead = daily.reduce((s, d) => s + d.cacheReadCost, 0);
+  const totalCacheWrite = daily.reduce((s, d) => s + d.cacheWriteCost, 0);
 
   return (
     <div className="h-screen flex flex-col">
@@ -45,128 +123,202 @@ export default function CostsPage() {
       <div className="flex-shrink-0 border-b border-white/5 bg-white/[0.01] px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-amber-500/10">
-              <DollarSign className="h-6 w-6 text-amber-400" />
+            <div className="p-2 rounded-lg bg-orange-500/10">
+              <DollarSign className="h-6 w-6 text-orange-400" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">Costs & Usage</h1>
-              <p className="text-sm text-white/40">API spend & token tracking</p>
+              <h1 className="text-xl font-bold text-white">Costs</h1>
+              <p className="text-sm text-white/40">{daily.length} days of usage</p>
             </div>
-          </div>
-          <div className="flex items-center gap-2 text-xs">
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-300">
-              <DollarSign className="h-3.5 w-3.5" /> $2.45 today
-              <TrendingUp className="h-3 w-3 text-green-400 ml-1" />
-            </span>
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-300">
-              <BarChart3 className="h-3.5 w-3.5" /> $18.80 /wk
-            </span>
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-green-500/10 text-green-300">
-              <Zap className="h-3.5 w-3.5" /> $45.80 /mo
-            </span>
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.03] text-white/40">
-              <Database className="h-3.5 w-3.5" /> 2.4M tokens
-            </span>
           </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto">
-        {/* Daily Spend Chart */}
-        <div className="px-6 py-4 border-b border-white/5">
-          <div className="flex items-center gap-2 mb-3">
-            <BarChart3 className="h-3.5 w-3.5 text-orange-400" />
-            <span className="text-sm font-semibold text-white/60">Daily Spend</span>
-            <span className="text-[10px] text-white/20">This Week</span>
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 text-orange-400 animate-spin" />
           </div>
-          <div className="flex items-end gap-2 h-32">
-            {dailyCosts.map((day, i) => (
-              <div key={i} className="flex-1 flex flex-col items-center gap-1 group">
-                <span className="text-[10px] text-white/30 opacity-0 group-hover:opacity-100 transition-opacity">${day.cost.toFixed(2)}</span>
-                <div className="w-full relative">
-                  <div
-                    className="w-full rounded-t bg-gradient-to-t from-orange-600/80 to-orange-400/80 transition-all group-hover:from-orange-500 group-hover:to-orange-300"
-                    style={{ height: `${(day.cost / maxCost) * 100}px` }}
-                  />
-                </div>
-                <span className="text-[10px] text-white/30">{day.day}</span>
+        ) : (
+          <>
+            {/* Summary cards */}
+            <div className="grid grid-cols-4 gap-4">
+              <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                <p className="text-[11px] text-white/30 mb-1">Total ({daily.length}d)</p>
+                <p className="text-2xl font-bold text-white">{formatCost(totalCost)}</p>
+                <p className="text-[10px] text-white/20 mt-1">{formatTokens(totalTokens)} tokens</p>
               </div>
-            ))}
-          </div>
-        </div>
+              <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                <p className="text-[11px] text-white/30 mb-1">Last 7 days</p>
+                <p className="text-2xl font-bold text-white">{formatCost(last7Cost)}</p>
+                <p className="text-[10px] text-white/20 mt-1">{formatCost(last7Cost / 7)}/day avg</p>
+              </div>
+              <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                <p className="text-[11px] text-white/30 mb-1">Today</p>
+                <p className="text-2xl font-bold text-white">{today ? formatCost(today.totalCost) : "—"}</p>
+                <div className="flex items-center gap-1 mt-1">
+                  {costTrend > 0 ? (
+                    <><TrendingUp className="h-3 w-3 text-red-400" /><span className="text-[10px] text-red-400">+{formatCost(costTrend)} vs yesterday</span></>
+                  ) : costTrend < 0 ? (
+                    <><TrendingDown className="h-3 w-3 text-green-400" /><span className="text-[10px] text-green-400">{formatCost(costTrend)} vs yesterday</span></>
+                  ) : (
+                    <span className="text-[10px] text-white/20">same as yesterday</span>
+                  )}
+                </div>
+              </div>
+              <div className="rounded-xl bg-white/[0.02] border border-white/5 p-4">
+                <p className="text-[11px] text-white/30 mb-1">Avg/day</p>
+                <p className="text-2xl font-bold text-white">{formatCost(totalCost / daily.length)}</p>
+                <p className="text-[10px] text-white/20 mt-1">~{formatCost(totalCost / daily.length * 30)}/mo projected</p>
+              </div>
+            </div>
 
-        {/* Model Breakdown */}
-        <div className="px-6 py-3 border-b border-white/5">
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="h-3.5 w-3.5 text-orange-400" />
-            <span className="text-sm font-semibold text-white/60">By Model</span>
-          </div>
-          {modelBreakdown.map((item, i) => (
-            <button
-              key={i}
-              onClick={() => setExpandedModel(expandedModel === item.model ? null : item.model)}
-              className="w-full text-left"
-            >
-              <div className={`flex items-center gap-3 px-2 py-2 rounded-lg transition-all hover:bg-white/[0.02] ${expandedModel === item.model ? "bg-white/[0.03]" : ""}`}>
-                <div className={`h-2 w-2 rounded-full flex-shrink-0 ${
-                  item.color === "orange" ? "bg-orange-400" :
-                  item.color === "blue" ? "bg-blue-400" : "bg-green-400"
-                }`} />
-                <span className="text-xs font-medium text-white/70 flex-1">{item.model}</span>
-                <div className="w-24 h-1.5 rounded-full bg-white/5 flex-shrink-0">
-                  <div
-                    className={`h-full rounded-full ${
-                      item.color === "orange" ? "bg-orange-500" :
-                      item.color === "blue" ? "bg-blue-500" : "bg-green-500"
-                    }`}
-                    style={{ width: `${item.percent}%` }}
-                  />
-                </div>
-                <span className="text-xs text-white/40 w-14 text-right">${item.cost.toFixed(2)}</span>
-                <span className="text-[10px] text-white/20 w-8 text-right">{item.percent}%</span>
-                <ChevronRight className={`h-3 w-3 text-white/15 transition-transform ${expandedModel === item.model ? "rotate-90" : ""}`} />
+            {/* Cost bar chart */}
+            <div className="rounded-xl bg-white/[0.02] border border-white/5 overflow-hidden">
+              <div className="px-5 py-3 border-b border-white/5 flex items-center gap-3">
+                <BarChart3 className="h-4 w-4 text-orange-400" />
+                <h2 className="text-sm font-semibold text-white">Daily Cost</h2>
               </div>
-              {expandedModel === item.model && (
-                <div className="ml-7 px-2 pb-2">
-                  <div className="p-3 rounded-lg bg-white/[0.02] border border-white/5 grid grid-cols-3 gap-3">
-                    <div>
-                      <p className="text-[10px] text-white/25">Cost</p>
-                      <p className="text-xs text-white/60">${item.cost.toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-white/25">Tokens</p>
-                      <p className="text-xs text-white/60">{item.tokens}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-white/25">Share</p>
-                      <p className="text-xs text-white/60">{item.percent}%</p>
-                    </div>
+              <div className="p-5">
+                <div className="flex items-end gap-1" style={{ height: "160px" }}>
+                  {daily.map((d, i) => {
+                    const pct = maxDailyCost > 0 ? (d.totalCost / maxDailyCost) * 100 : 0;
+                    const isToday = i === daily.length - 1;
+                    return (
+                      <div key={d.date} className="flex-1 flex flex-col items-center justify-end group relative" style={{ height: "100%" }}>
+                        <div
+                          className={`w-full rounded-t transition-all ${
+                            isToday ? "bg-orange-500" : "bg-orange-500/30 group-hover:bg-orange-500/50"
+                          }`}
+                          style={{ height: `${Math.max(pct, 1)}%` }}
+                        />
+                        {/* Tooltip */}
+                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden group-hover:block z-10">
+                          <div className="bg-black/90 rounded px-2 py-1 text-[10px] text-white whitespace-nowrap border border-white/10">
+                            {formatDate(d.date)}: {formatCost(d.totalCost)}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between mt-2 text-[9px] text-white/20">
+                  <span>{daily.length > 0 ? formatDate(daily[0].date) : ""}</span>
+                  <span>{daily.length > 0 ? formatDate(daily[daily.length - 1].date) : ""}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Cost breakdown */}
+            <div className="rounded-xl bg-white/[0.02] border border-white/5 overflow-hidden">
+              <div className="px-5 py-3 border-b border-white/5">
+                <h2 className="text-sm font-semibold text-white">Cost Breakdown</h2>
+              </div>
+              <div className="p-5 space-y-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-white/50 w-24">Cache Write</span>
+                  <div className="flex-1 h-2 rounded-full bg-white/5">
+                    <div className="h-full rounded-full bg-orange-500/60" style={{ width: `${totalCost > 0 ? (totalCacheWrite / totalCost) * 100 : 0}%` }} />
                   </div>
+                  <span className="text-xs text-white/50 w-16 text-right">{formatCost(totalCacheWrite)}</span>
+                  <span className="text-[10px] text-white/25 w-10 text-right">{totalCost > 0 ? Math.round((totalCacheWrite / totalCost) * 100) : 0}%</span>
                 </div>
-              )}
-            </button>
-          ))}
-          <div className="flex items-center justify-between px-2 pt-2 mt-1 border-t border-white/5">
-            <span className="text-[10px] text-white/25">Total This Month</span>
-            <span className="text-sm font-bold text-white/70">$45.80</span>
-          </div>
-        </div>
-
-        {/* Cost Optimization */}
-        <div className="px-6 py-3">
-          <div className="flex items-center gap-2 mb-2">
-            <Lightbulb className="h-3.5 w-3.5 text-yellow-400" />
-            <span className="text-sm font-semibold text-white/60">Optimization Tips</span>
-          </div>
-          <div className="space-y-1">
-            {tips.map((tip, i) => (
-              <div key={i} className="px-3 py-2 rounded-lg bg-white/[0.02] border border-white/5 hover:bg-white/[0.03] transition-all">
-                <p className="text-xs text-white/50">{tip.text}</p>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-white/50 w-24">Cache Read</span>
+                  <div className="flex-1 h-2 rounded-full bg-white/5">
+                    <div className="h-full rounded-full bg-amber-500/60" style={{ width: `${totalCost > 0 ? (totalCacheRead / totalCost) * 100 : 0}%` }} />
+                  </div>
+                  <span className="text-xs text-white/50 w-16 text-right">{formatCost(totalCacheRead)}</span>
+                  <span className="text-[10px] text-white/25 w-10 text-right">{totalCost > 0 ? Math.round((totalCacheRead / totalCost) * 100) : 0}%</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-white/50 w-24">Output</span>
+                  <div className="flex-1 h-2 rounded-full bg-white/5">
+                    <div className="h-full rounded-full bg-blue-500/60" style={{ width: `${totalCost > 0 ? (totalOutput / totalCost) * 100 : 0}%` }} />
+                  </div>
+                  <span className="text-xs text-white/50 w-16 text-right">{formatCost(totalOutput)}</span>
+                  <span className="text-[10px] text-white/25 w-10 text-right">{totalCost > 0 ? Math.round((totalOutput / totalCost) * 100) : 0}%</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-white/50 w-24">Input</span>
+                  <div className="flex-1 h-2 rounded-full bg-white/5">
+                    <div className="h-full rounded-full bg-green-500/60" style={{ width: `${totalCost > 0 ? (totalInput / totalCost) * 100 : 0}%` }} />
+                  </div>
+                  <span className="text-xs text-white/50 w-16 text-right">{formatCost(totalInput)}</span>
+                  <span className="text-[10px] text-white/25 w-10 text-right">{totalCost > 0 ? Math.round((totalInput / totalCost) * 100) : 0}%</span>
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
+
+            {/* Cost by Model */}
+            {modelCosts.length > 0 && (
+              <div className="rounded-xl bg-white/[0.02] border border-white/5 overflow-hidden">
+                <div className="px-5 py-3 border-b border-white/5">
+                  <h2 className="text-sm font-semibold text-white">Cost by Model</h2>
+                </div>
+                <div className="px-5 py-2 flex items-center gap-4 text-[11px] text-white/25 uppercase tracking-wider border-b border-white/5">
+                  <span className="flex-1">Model</span>
+                  <span className="w-16 text-right">Calls</span>
+                  <span className="w-24 text-right">Tokens</span>
+                  <span className="w-20 text-right">Input</span>
+                  <span className="w-20 text-right">Output</span>
+                  <span className="w-24 text-right font-semibold">Total</span>
+                </div>
+                {(() => {
+                  const maxModelCost = Math.max(...modelCosts.map(m => m.totalCost), 0.01);
+                  return modelCosts.map((m) => (
+                    <div key={m.model} className="px-5 py-2.5 border-b border-white/[0.02] hover:bg-white/[0.02] transition-all">
+                      <div className="flex items-center gap-4 text-[13px]">
+                        <div className="flex-1 min-w-0">
+                          <span className="text-white/60 truncate block">{m.model.replace(/^.*\//, "")}</span>
+                          {m.provider && <span className="text-[10px] text-white/20">{m.provider}</span>}
+                        </div>
+                        <span className="w-16 text-right text-white/35 font-mono text-[12px]">{m.count}</span>
+                        <span className="w-24 text-right text-white/35 font-mono text-[12px]">{formatTokens(m.totalTokens)}</span>
+                        <span className="w-20 text-right text-white/35">{formatCost(m.inputCost)}</span>
+                        <span className="w-20 text-right text-white/35">{formatCost(m.outputCost)}</span>
+                        <span className="w-24 text-right text-white/70 font-medium">{formatCost(m.totalCost)}</span>
+                      </div>
+                      <div className="mt-1.5 h-1 rounded-full bg-white/5">
+                        <div className="h-full rounded-full bg-orange-500/40" style={{ width: `${(m.totalCost / maxModelCost) * 100}%` }} />
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+            )}
+
+            {/* Daily table */}
+            <div className="rounded-xl bg-white/[0.02] border border-white/5 overflow-hidden">
+              <div className="px-5 py-3 border-b border-white/5 flex items-center gap-3">
+                <Calendar className="h-4 w-4 text-white/40" />
+                <h2 className="text-sm font-semibold text-white">Daily Breakdown</h2>
+              </div>
+              <div className="px-5 py-2 flex items-center gap-4 text-[11px] text-white/25 uppercase tracking-wider border-b border-white/5">
+                <span className="w-24">Date</span>
+                <span className="w-24">Tokens</span>
+                <span className="w-20 text-right">Input</span>
+                <span className="w-20 text-right">Output</span>
+                <span className="w-20 text-right">Cache R</span>
+                <span className="w-20 text-right">Cache W</span>
+                <span className="w-24 text-right font-semibold">Total</span>
+              </div>
+              <div className="max-h-80 overflow-y-auto">
+                {[...daily].reverse().map((d) => (
+                  <div key={d.date} className="px-5 py-2.5 flex items-center gap-4 text-[13px] hover:bg-white/[0.02] transition-all border-b border-white/[0.02]">
+                    <span className="w-24 text-white/50">{formatDate(d.date)}</span>
+                    <span className="w-24 text-white/40 font-mono text-[12px]">{formatTokens(d.totalTokens)}</span>
+                    <span className="w-20 text-right text-white/35">{formatCost(d.inputCost)}</span>
+                    <span className="w-20 text-right text-white/35">{formatCost(d.outputCost)}</span>
+                    <span className="w-20 text-right text-white/35">{formatCost(d.cacheReadCost)}</span>
+                    <span className="w-20 text-right text-white/35">{formatCost(d.cacheWriteCost)}</span>
+                    <span className="w-24 text-right text-white/70 font-medium">{formatCost(d.totalCost)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

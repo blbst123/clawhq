@@ -1,5 +1,5 @@
 // ─── OpenClaw Gateway WebSocket RPC Client ───
-// Connects to the gateway's WebSocket RPC endpoint (same protocol as Control UI)
+// Matches the real gateway control-UI protocol (type:req/res, connect handshake)
 
 type RpcCallback = {
   resolve: (result: unknown) => void;
@@ -8,16 +8,19 @@ type RpcCallback = {
 };
 
 export interface GatewayConfig {
-  url: string;   // e.g. "ws://100.x.y.z:18789" or "wss://..."
+  url: string;   // e.g. "http://100.x.y.z:18789"
   token: string;
 }
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
 
+function makeId(): string {
+  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+
 export class GatewayRPC {
   private ws: WebSocket | null = null;
-  private pending = new Map<number, RpcCallback>();
-  private nextId = 1;
+  private pending = new Map<string, RpcCallback>();
   private config: GatewayConfig | null = null;
   private closed = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -25,6 +28,9 @@ export class GatewayRPC {
   private _status: ConnectionStatus = "disconnected";
   private statusListeners = new Set<(status: ConnectionStatus) => void>();
   private eventListeners = new Map<string, Set<(data: unknown) => void>>();
+  private helloData: Record<string, unknown> | null = null;
+  private connectSent = false;
+  private connectNonce: string | null = null;
 
   get status() { return this._status; }
 
@@ -47,6 +53,7 @@ export class GatewayRPC {
   connect(config: GatewayConfig) {
     this.config = config;
     this.closed = false;
+    this.helloData = null;
     this.doConnect();
   }
 
@@ -55,19 +62,26 @@ export class GatewayRPC {
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.ws?.close();
     this.ws = null;
+    this.helloData = null;
     this.flushPending(new Error("Disconnected"));
     this.setStatus("disconnected");
   }
 
   get isConnected() {
-    return this.ws?.readyState === WebSocket.OPEN;
+    return this._status === "connected" && this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  getHelloData() {
+    return this.helloData;
   }
 
   async request<T = unknown>(method: string, params?: Record<string, unknown>, timeoutMs = 15000): Promise<T> {
-    if (!this.isConnected) throw new Error("Not connected to gateway");
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error("Not connected to gateway");
+    }
 
-    const id = this.nextId++;
-    const msg = JSON.stringify({ jsonrpc: "2.0", method, params: params ?? {}, id });
+    const id = makeId();
+    const msg = JSON.stringify({ type: "req", id, method, params: params ?? {} });
 
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -97,10 +111,6 @@ export class GatewayRPC {
     }>("status");
   }
 
-  async getHealth() {
-    return this.request("health");
-  }
-
   async listSessions(opts?: { active?: number }) {
     return this.request<Array<{
       sessionKey: string;
@@ -111,8 +121,8 @@ export class GatewayRPC {
     }>>("sessions.list", opts);
   }
 
-  async getSessionUsage() {
-    return this.request<unknown>("sessions.usage");
+  async getSessionUsage(opts?: { limit?: number }) {
+    return this.request<unknown>("sessions.usage", opts ?? { limit: 200 });
   }
 
   async getUsageLogs() {
@@ -127,7 +137,7 @@ export class GatewayRPC {
     return this.request<unknown>("usage.cost");
   }
 
-  async listCronJobs() {
+  async listCronJobs(opts?: { includeDisabled?: boolean }) {
     return this.request<{ jobs: Array<{
       id: string;
       name?: string;
@@ -137,11 +147,23 @@ export class GatewayRPC {
       lastRun?: unknown;
       nextRun?: string;
       [key: string]: unknown;
-    }> }>("cron.list");
+    }> }>("cron.list", opts);
   }
 
   async getCronStatus() {
     return this.request<unknown>("cron.status");
+  }
+
+  async updateCronJob(jobId: string, patch: Record<string, unknown>) {
+    return this.request<unknown>("cron.update", { jobId, patch });
+  }
+
+  async runCronJob(jobId: string) {
+    return this.request<unknown>("cron.run", { jobId });
+  }
+
+  async removeCronJob(jobId: string) {
+    return this.request<unknown>("cron.remove", { jobId });
   }
 
   async getCronRuns(jobId: string) {
@@ -195,13 +217,24 @@ export class GatewayRPC {
 
     this.setStatus("connecting");
 
-    // Build WS URL with token
-    const wsUrl = this.config.url.replace(/^http/, "ws");
-    const separator = wsUrl.includes("?") ? "&" : "?";
-    const url = `${wsUrl}${separator}token=${encodeURIComponent(this.config.token)}`;
+    // Build WS URL
+    let wsUrl: string;
+    if (this.config.url === "__self__" || this.config.url === "") {
+      // Same-origin: served by the gateway, connect to same host
+      const proto = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss" : "ws";
+      const host = typeof window !== "undefined" ? window.location.host : "localhost:18789";
+      wsUrl = `${proto}://${host}`;
+    } else if (this.config.url === "__proxy__") {
+      // Dev proxy mode (server.mjs)
+      const proto = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss" : "ws";
+      const host = typeof window !== "undefined" ? window.location.host : "localhost:3001";
+      wsUrl = `${proto}://${host}/ws`;
+    } else {
+      wsUrl = this.config.url.replace(/^http/, "ws").replace(/\/$/, "");
+    }
 
     try {
-      this.ws = new WebSocket(url);
+      this.ws = new WebSocket(wsUrl);
     } catch {
       this.setStatus("error");
       this.scheduleReconnect();
@@ -209,15 +242,10 @@ export class GatewayRPC {
     }
 
     this.ws.addEventListener("open", () => {
-      this.backoffMs = 1000;
-      this.setStatus("connected");
-      // Send connect handshake
-      this.ws?.send(JSON.stringify({
-        jsonrpc: "2.0",
-        method: "connect",
-        params: { token: this.config!.token, client: "clawhq" },
-        id: this.nextId++,
-      }));
+      // Queue connect with a brief delay (gateway may send a challenge first)
+      this.connectSent = false;
+      this.connectNonce = null;
+      setTimeout(() => this.sendConnect(), 750);
     });
 
     this.ws.addEventListener("message", (ev) => {
@@ -233,38 +261,86 @@ export class GatewayRPC {
     });
 
     this.ws.addEventListener("error", () => {
-      this.setStatus("error");
+      // error event is followed by close event
     });
+  }
+
+  private sendConnect() {
+    if (this.connectSent) return;
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN || !this.config) return;
+    this.connectSent = true;
+
+    const connectParams: Record<string, unknown> = {
+      minProtocol: 3,
+      maxProtocol: 3,
+      client: {
+        id: "openclaw-control-ui",
+        version: "0.1.0",
+        platform: typeof navigator !== "undefined" ? navigator.platform ?? "web" : "web",
+        mode: "webchat",
+      },
+      role: "operator",
+      scopes: ["operator.admin", "operator.approvals", "operator.pairing"],
+      auth: {
+        token: this.config.token,
+      },
+      caps: [],
+      userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "clawhq",
+      locale: typeof navigator !== "undefined" ? navigator.language : "en",
+    };
+
+    this.request("connect", connectParams)
+      .then((result) => {
+        this.backoffMs = 1000;
+        this.helloData = result as Record<string, unknown>;
+        this.setStatus("connected");
+      })
+      .catch(() => {
+        this.setStatus("error");
+        this.ws?.close();
+      });
   }
 
   private handleMessage(raw: string) {
     try {
       const msg = JSON.parse(raw);
 
-      // RPC response
-      if (msg.id !== undefined && this.pending.has(msg.id)) {
+      // Response to a request: {type: "res", id, ok, payload?, error?}
+      if (msg.type === "res" && msg.id !== undefined && this.pending.has(msg.id)) {
         const cb = this.pending.get(msg.id)!;
         this.pending.delete(msg.id);
         clearTimeout(cb.timer);
         if (msg.error) {
-          cb.reject(new Error(msg.error.message ?? "RPC error"));
+          cb.reject(new Error(msg.error.message ?? msg.error ?? "RPC error"));
         } else {
-          cb.resolve(msg.result);
+          // Gateway uses "payload" not "result"
+          cb.resolve(msg.payload ?? msg.result);
         }
         return;
       }
 
-      // Server-push event (notification)
-      if (msg.method && !msg.id) {
-        const listeners = this.eventListeners.get(msg.method);
-        if (listeners) {
-          listeners.forEach(fn => fn(msg.params));
+      // Server-push event: {type: "event", event, payload?, seq?}
+      if (msg.type === "event") {
+        const eventName = msg.event;
+
+        // Handle connect challenge — store nonce and re-send connect
+        if (eventName === "connect.challenge") {
+          const nonce = msg.payload?.nonce;
+          if (typeof nonce === "string") {
+            this.connectNonce = nonce;
+            this.connectSent = false; // Allow re-send
+            this.sendConnect();
+          }
+          return;
         }
-        // Also emit wildcard
-        const all = this.eventListeners.get("*");
-        if (all) {
-          all.forEach(fn => fn({ method: msg.method, params: msg.params }));
+
+        if (eventName) {
+          const listeners = this.eventListeners.get(eventName);
+          if (listeners) listeners.forEach(fn => fn(msg.payload));
+          const all = this.eventListeners.get("*");
+          if (all) all.forEach(fn => fn({ event: eventName, payload: msg.payload }));
         }
+        return;
       }
     } catch {
       // Ignore parse errors
@@ -276,7 +352,7 @@ export class GatewayRPC {
     this.reconnectTimer = setTimeout(() => {
       this.doConnect();
     }, this.backoffMs);
-    this.backoffMs = Math.min(this.backoffMs * 1.5, 30000);
+    this.backoffMs = Math.min(this.backoffMs * 1.7, 30000);
   }
 
   private flushPending(error: Error) {

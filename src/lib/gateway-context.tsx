@@ -39,8 +39,26 @@ export function GatewayProvider({ children }: { children: React.ReactNode }) {
     return unsub;
   }, []);
 
-  // Auto-connect from saved config on mount
+  // Auto-connect: check URL params first, then saved config
   useEffect(() => {
+    // Support ?token=xxx in URL (one-click setup from CLI)
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const urlToken = params.get("token");
+      if (urlToken) {
+        const cfg = { url: "__self__", token: urlToken };
+        setConfig(cfg);
+        saveGatewayConfig(cfg);
+        rpcRef.current.connect(cfg);
+        // Strip token from URL for security
+        const clean = new URL(window.location.href);
+        clean.searchParams.delete("token");
+        window.history.replaceState({}, "", clean.pathname + clean.search);
+        return;
+      }
+    }
+
+    // Fall back to saved config
     const saved = loadGatewayConfig();
     if (saved) {
       setConfig(saved);
