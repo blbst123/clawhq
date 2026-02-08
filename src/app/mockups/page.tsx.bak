@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState } from "react";
 import {
   Sparkles,
   CheckCircle2,
@@ -150,7 +150,7 @@ const captureLabel = (f: QueueItem["capturedFrom"]) => f.type === "chat" ? `via 
 const srcIcon = (t: string) => t === "cron" ? RefreshCw : t === "chat" ? MessageSquare : t === "backlog" ? FileText : t === "webhook" ? Globe : t === "heartbeat" ? Activity : Terminal;
 const srcStyle = (t: string) => t === "cron" ? "bg-orange-500/10 text-orange-300 border-orange-500/20" : t === "chat" ? "bg-blue-500/10 text-blue-300 border-blue-500/20" : t === "backlog" ? "bg-purple-500/10 text-purple-300 border-purple-500/20" : t === "webhook" ? "bg-cyan-500/10 text-cyan-300 border-cyan-500/20" : "bg-white/5 text-white/40 border-white/10";
 const srcLabel = (s: TriggerSource) => s.type === "chat" ? s.channel : s.type === "cron" ? "Cron" : s.type === "backlog" ? "Queue" : s.type === "webhook" ? s.service : s.type === "heartbeat" ? "Heartbeat" : "System";
-const actDot = (t: string) => t === "error" ? "bg-red-400" : "bg-white/25";
+const actDot = (t: string) => t === "complete" ? "bg-green-400" : t === "start" ? "bg-blue-400" : t === "error" ? "bg-red-400" : "bg-white/30";
 
 const SrcBadge = ({ source }: { source: TriggerSource }) => {
   const Icon = srcIcon(source.type);
@@ -168,45 +168,6 @@ export default function MockupV2() {
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
   // Projects start collapsed except first one
   const [openProjects, setOpenProjects] = useState<Set<string>>(new Set(["Lit.trade"]));
-
-  // ─── Resizable columns ───
-  const MIN_W = 340;
-  const MIN_CHAT = 280;
-  const [leftW, setLeftW] = useState(380);
-  const [midW, setMidW] = useState(380);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const dragging = useRef<"left" | "right" | null>(null);
-  const startX = useRef(0);
-  const startLeftW = useRef(0);
-  const startMidW = useRef(0);
-
-  const onMouseDown = useCallback((which: "left" | "right") => (e: React.MouseEvent) => {
-    e.preventDefault();
-    dragging.current = which;
-    startX.current = e.clientX;
-    startLeftW.current = leftW;
-    startMidW.current = midW;
-  }, [leftW, midW]);
-
-  useEffect(() => {
-    const onMouseMove = (e: MouseEvent) => {
-      if (!dragging.current || !containerRef.current) return;
-      const delta = e.clientX - startX.current;
-      const totalW = containerRef.current.offsetWidth;
-
-      if (dragging.current === "left") {
-        const newLeft = Math.max(MIN_W, Math.min(startLeftW.current + delta, totalW - startMidW.current - MIN_CHAT - 8));
-        setLeftW(newLeft);
-      } else {
-        const newMid = Math.max(MIN_W, Math.min(startMidW.current + delta, totalW - startLeftW.current - MIN_CHAT - 8));
-        setMidW(newMid);
-      }
-    };
-    const onMouseUp = () => { dragging.current = null; };
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
-    return () => { window.removeEventListener("mousemove", onMouseMove); window.removeEventListener("mouseup", onMouseUp); };
-  }, []);
 
   const activeQueueItem = projects.flatMap(p => p.items).find(q => q.id === chatContext);
   const currentMessages = chatMessages[chatContext] || chatMessages["general"];
@@ -230,7 +191,7 @@ export default function MockupV2() {
               <Sparkles className="h-5 w-5 text-orange-400" />
             </div>
             <span className="text-lg font-bold text-white">ClawHQ</span>
-            <span className="text-xs px-2 py-0.5 rounded bg-orange-500/10 text-orange-300/60">v2 mockup</span>
+            <span className="text-[10px] px-2 py-0.5 rounded bg-orange-500/10 text-orange-300/60">v2 mockup</span>
           </div>
           <div className="flex items-center gap-3 text-xs">
             <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-green-500/10 text-green-300">
@@ -250,17 +211,17 @@ export default function MockupV2() {
       </div>
 
       {/* ═══ 3-Column Layout ═══ */}
-      <div ref={containerRef} className="flex-1 flex min-h-0">
+      <div className="flex-1 flex min-h-0">
 
-        {/* ════ LEFT: Planning Queue ════ */}
-        <div style={{ width: leftW, minWidth: MIN_W }} className="flex flex-col bg-white/[0.005] flex-shrink-0">
+        {/* ════ LEFT: Planning Queue (wider) ════ */}
+        <div className="w-[380px] flex flex-col bg-white/[0.005]">
           {/* Header */}
           <div className="flex-shrink-0 px-4 py-3 border-b border-white/5">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-white flex items-center gap-2">
                 <Lightbulb className="h-4 w-4 text-orange-400" />
                 Planning Queue
-                <span className="text-xs px-1.5 py-0.5 rounded bg-white/10 text-white/40 font-normal">{totalQueued}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-white/40 font-normal">{totalQueued}</span>
               </h2>
               <button className="p-1 rounded hover:bg-white/5 text-white/40 hover:text-white transition-colors">
                 <Plus className="h-4 w-4" />
@@ -287,21 +248,21 @@ export default function MockupV2() {
                   >
                     <ChevronRight className={`h-3 w-3 text-white/20 transition-transform ${isOpen ? "rotate-90" : ""}`} />
                     <span className={`h-2.5 w-2.5 rounded-full ${dotColor(project.color)}`} />
-                    <span className="text-sm font-semibold text-white/70 flex-1 text-left">{project.name}</span>
+                    <span className="text-xs font-semibold text-white/70 flex-1 text-left">{project.name}</span>
                     
                     {/* Status summary chips */}
                     <div className="flex items-center gap-1">
                       {running > 0 && (
-                        <span className="text-[11px] px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-300">{running} running</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-300">{running} running</span>
                       )}
                       {ready > 0 && (
-                        <span className="text-[11px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-300">{ready} ready</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-300">{ready} ready</span>
                       )}
                       {discussing > 0 && (
-                        <span className="text-[11px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300">{discussing} 💬</span>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300">{discussing} 💬</span>
                       )}
                       {!isOpen && (
-                        <span className="text-[11px] text-white/20 ml-1">{project.items.length}</span>
+                        <span className="text-[9px] text-white/20 ml-1">{project.items.length}</span>
                       )}
                     </div>
                   </button>
@@ -334,17 +295,17 @@ export default function MockupV2() {
                                   item.status === "discussing" ? "bg-blue-400" :
                                   dotColorMuted(project.color)
                                 }`} />
-                                <span className="text-sm text-white/75 flex-1 truncate">{item.title}</span>
-                                <span className={`text-[11px] ${sc.text}`}>{sc.emoji}</span>
+                                <span className="text-xs text-white/75 flex-1 truncate">{item.title}</span>
+                                <span className={`text-[9px] ${sc.text}`}>{sc.emoji}</span>
                               </div>
 
                               {/* Inline meta — only when NOT expanded */}
                               {!isSelected && (
                                 <div className="flex items-center gap-2 mt-1 ml-3.5">
-                                  <span className="text-[11px] text-white/20">{item.capturedAt}</span>
+                                  <span className="text-[9px] text-white/20">{item.capturedAt}</span>
                                   {item.messages > 0 && (
-                                    <span className="text-[11px] text-white/20 flex items-center gap-0.5">
-                                      <MessageSquare className="h-2.5 w-2.5" /> {item.messages}
+                                    <span className="text-[9px] text-white/20 flex items-center gap-0.5">
+                                      <MessageSquare className="h-2 w-2" /> {item.messages}
                                     </span>
                                   )}
                                 </div>
@@ -355,9 +316,9 @@ export default function MockupV2() {
                             {isSelected && (
                               <div className="px-3 pb-2 ml-3.5 space-y-2">
                                 {item.note && (
-                                  <p className="text-xs text-white/40 leading-relaxed">{item.note}</p>
+                                  <p className="text-[11px] text-white/40 leading-relaxed">{item.note}</p>
                                 )}
-                                <div className="flex items-center gap-2 text-[11px] text-white/25">
+                                <div className="flex items-center gap-2 text-[9px] text-white/25">
                                   <span className="flex items-center gap-1">
                                     <Hash className="h-2.5 w-2.5" />
                                     {captureLabel(item.capturedFrom)}
@@ -377,16 +338,16 @@ export default function MockupV2() {
                                 <div className="flex items-center gap-2 pt-0.5">
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setChatContext(item.id); }}
-                                    className="text-xs text-blue-300/80 hover:text-blue-300 flex items-center gap-1 transition-colors"
+                                    className="text-[10px] text-blue-300/80 hover:text-blue-300 flex items-center gap-1 transition-colors"
                                   >
                                     <MessageSquare className="h-3 w-3" /> Discuss
                                   </button>
                                   {item.status === "ready" && (
-                                    <button className="text-xs text-green-300/80 hover:text-green-300 flex items-center gap-1 transition-colors">
+                                    <button className="text-[10px] text-green-300/80 hover:text-green-300 flex items-center gap-1 transition-colors">
                                       <Play className="h-3 w-3" /> Start
                                     </button>
                                   )}
-                                  <button className="text-xs text-white/25 hover:text-white/50 flex items-center gap-1 transition-colors">
+                                  <button className="text-[10px] text-white/25 hover:text-white/50 flex items-center gap-1 transition-colors">
                                     <Calendar className="h-3 w-3" /> Schedule
                                   </button>
                                 </div>
@@ -408,27 +369,24 @@ export default function MockupV2() {
               <input
                 type="text"
                 placeholder="Capture an idea..."
-                className="w-full bg-white/[0.03] border border-white/8 rounded-lg px-3 py-2 text-sm text-white placeholder-white/25 focus:outline-none focus:border-orange-500/30 transition-all"
+                className="w-full bg-white/[0.03] border border-white/8 rounded-lg px-3 py-2 text-xs text-white placeholder-white/25 focus:outline-none focus:border-orange-500/30 transition-all"
               />
               <Plus className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/20" />
             </div>
           </div>
         </div>
 
-        {/* ═══ DRAG HANDLE 1 ═══ */}
-        <div
-          onMouseDown={onMouseDown("left")}
-          className="w-1 bg-white/10 hover:bg-orange-500/30 cursor-col-resize transition-colors flex-shrink-0"
-        />
+        {/* ═══ DIVIDER ═══ */}
+        <div className="w-px bg-white/10" />
 
         {/* ════ MIDDLE: Active + Activity ════ */}
-        <div style={{ width: midW, minWidth: MIN_W }} className="flex flex-col bg-white/[0.005] flex-shrink-0">
+        <div className="w-[380px] flex flex-col bg-white/[0.005]">
           {/* Active tasks */}
           <div className="flex-shrink-0 px-4 py-3 border-b border-white/5">
             <h2 className="text-sm font-semibold text-white flex items-center gap-2">
               <Zap className="h-4 w-4 text-orange-400" />
               Active
-              <span className="text-xs px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-300 font-normal">{activeTasks.length} running</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-300 font-normal">{activeTasks.length} running</span>
             </h2>
           </div>
 
@@ -436,18 +394,18 @@ export default function MockupV2() {
             {activeTasks.map((task) => (
               <div key={task.id} className="p-2.5 rounded-lg bg-orange-500/[0.04] border border-orange-500/10">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-medium text-white/80">{task.title}</span>
-                  <span className="text-[11px] text-white/30">{task.startedAt}</span>
+                  <span className="text-xs font-medium text-white/80">{task.title}</span>
+                  <span className="text-[9px] text-white/30">{task.startedAt}</span>
                 </div>
                 <div className="flex items-center gap-2 mb-2">
                   <SrcBadge source={task.source} />
-                  <span className="text-[11px] text-white/25">{task.project}</span>
+                  <span className="text-[9px] text-white/25">{task.project}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-1 rounded-full bg-white/10">
                     <div className="h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-400" style={{ width: `${task.progress}%` }} />
                   </div>
-                  <span className="text-[11px] text-white/30">{task.progress}%</span>
+                  <span className="text-[9px] text-white/30">{task.progress}%</span>
                 </div>
               </div>
             ))}
@@ -461,10 +419,10 @@ export default function MockupV2() {
                   <Activity className="h-4 w-4 text-white/50" /> Activity
                 </h2>
                 <div className="flex items-center gap-1">
-                  <button className="text-[11px] px-2 py-0.5 rounded-full bg-white/5 text-white/40">All</button>
-                  <button className="text-[11px] px-2 py-0.5 rounded-full text-white/25 hover:bg-orange-500/10 hover:text-orange-300 transition-all">Cron</button>
-                  <button className="text-[11px] px-2 py-0.5 rounded-full text-white/25 hover:bg-blue-500/10 hover:text-blue-300 transition-all">Chat</button>
-                  <button className="text-[11px] px-2 py-0.5 rounded-full text-white/25 hover:bg-purple-500/10 hover:text-purple-300 transition-all">Queue</button>
+                  <button className="text-[9px] px-2 py-0.5 rounded-full bg-white/5 text-white/40">All</button>
+                  <button className="text-[9px] px-2 py-0.5 rounded-full text-white/25 hover:bg-orange-500/10 hover:text-orange-300 transition-all">Cron</button>
+                  <button className="text-[9px] px-2 py-0.5 rounded-full text-white/25 hover:bg-blue-500/10 hover:text-blue-300 transition-all">Chat</button>
+                  <button className="text-[9px] px-2 py-0.5 rounded-full text-white/25 hover:bg-purple-500/10 hover:text-purple-300 transition-all">Queue</button>
                 </div>
               </div>
             </div>
@@ -474,27 +432,32 @@ export default function MockupV2() {
                 <div key={a.id}>
                   <button
                     onClick={() => setExpandedActivity(expandedActivity === a.id ? null : a.id)}
-                    className={`w-full text-left flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all ${
+                    className={`w-full text-left flex items-start gap-3 p-2 rounded-lg transition-all ${
                       expandedActivity === a.id ? "bg-white/[0.04]" : "hover:bg-white/[0.02]"
                     }`}
                   >
-                    <div className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${actDot(a.type)}`} />
-                    <span className="text-xs text-white/70 font-medium truncate">{a.action}</span>
-                    <span className="text-[10px] text-white/20 flex-shrink-0 ml-auto whitespace-nowrap">
-                      {a.time}{a.cost ? ` · $${a.cost.toFixed(2)}` : ""}
-                    </span>
-                  </button>
-                  {expandedActivity === a.id && (
-                    <div className="ml-6 mb-1 px-2.5 space-y-1.5">
-                      {a.description && (
-                        <p className="text-[11px] text-white/35 leading-relaxed">{a.description}</p>
-                      )}
-                      <div className="flex items-center gap-3 text-[10px] text-white/20">
+                    <div className="flex flex-col items-center mt-1">
+                      <div className={`h-2 w-2 rounded-full ${actDot(a.type)}`} />
+                      {expandedActivity !== a.id && <div className="w-px h-4 bg-white/5 mt-1" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-xs text-white/80 font-medium truncate">{a.action}</span>
+                        <span className="text-[10px] text-white/25 flex-shrink-0">{a.time}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
                         <SrcBadge source={a.source} />
-                        {a.model && <span>{a.model}</span>}
-                        {a.duration && <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {a.duration}</span>}
-                        {a.cost !== undefined && a.cost > 0 && <span>${a.cost.toFixed(2)}</span>}
-                        {a.tokens && <span>{((a.tokens.in + a.tokens.out) / 1000).toFixed(1)}K tokens</span>}
+                        {a.model && <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-white/25">{a.model}</span>}
+                        {a.cost !== undefined && a.cost > 0 && <span className="text-[9px] text-white/25">${a.cost.toFixed(2)}</span>}
+                      </div>
+                    </div>
+                  </button>
+                  {expandedActivity === a.id && a.description && (
+                    <div className="ml-7 mb-2 px-2">
+                      <p className="text-[11px] text-white/40 leading-relaxed mb-1">{a.description}</p>
+                      <div className="flex items-center gap-3 text-[9px] text-white/20">
+                        {a.duration && <span className="flex items-center gap-1"><Clock className="h-2.5 w-2.5" /> {a.duration}</span>}
+                        {a.tokens && <span className="flex items-center gap-1"><Zap className="h-2.5 w-2.5" /> {((a.tokens.in + a.tokens.out) / 1000).toFixed(1)}K</span>}
                       </div>
                     </div>
                   )}
@@ -510,14 +473,11 @@ export default function MockupV2() {
           </div>
         </div>
 
-        {/* ═══ DRAG HANDLE 2 ═══ */}
-        <div
-          onMouseDown={onMouseDown("right")}
-          className="w-1 bg-white/10 hover:bg-orange-500/30 cursor-col-resize transition-colors flex-shrink-0"
-        />
+        {/* ═══ DIVIDER ═══ */}
+        <div className="w-px bg-white/10" />
 
         {/* ════ RIGHT: Chat ════ */}
-        <div className="flex-1 flex flex-col min-w-0" style={{ minWidth: MIN_CHAT }}>
+        <div className="flex-1 flex flex-col min-w-0">
           <div className="flex-shrink-0 px-4 py-3 border-b border-white/5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -533,7 +493,7 @@ export default function MockupV2() {
             </div>
             {activeQueueItem && (
               <div className="flex items-center gap-2 mt-1.5">
-                <span className={`text-[11px] px-1.5 py-0.5 rounded ${statusCfg(activeQueueItem.status).bg} ${statusCfg(activeQueueItem.status).text}`}>
+                <span className={`text-[9px] px-1.5 py-0.5 rounded ${statusCfg(activeQueueItem.status).bg} ${statusCfg(activeQueueItem.status).text}`}>
                   {statusCfg(activeQueueItem.status).emoji} {statusCfg(activeQueueItem.status).label}
                 </span>
               </div>
@@ -543,8 +503,8 @@ export default function MockupV2() {
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {activeQueueItem && (
               <div className="mb-2 px-3 py-2 rounded-lg bg-white/[0.02]">
-                <p className="text-xs text-white/20 uppercase tracking-wider mb-0.5">Discussing</p>
-                <p className="text-base text-white/60 font-medium">{activeQueueItem.title}</p>
+                <p className="text-[10px] text-white/20 uppercase tracking-wider mb-0.5">Discussing</p>
+                <p className="text-sm text-white/60 font-medium">{activeQueueItem.title}</p>
               </div>
             )}
             {currentMessages.map((msg, i) => (
@@ -552,8 +512,8 @@ export default function MockupV2() {
                 <div className={`max-w-[85%] ${
                   msg.role === "user" ? "bg-orange-500/15 rounded-2xl rounded-tr-sm" : "bg-white/[0.03] rounded-2xl rounded-tl-sm"
                 } px-3.5 py-2.5`}>
-                  <p className="text-sm text-white/85 whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-                  <p className="text-[11px] text-white/20 mt-1">{msg.time}</p>
+                  <p className="text-[13px] text-white/85 whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                  <p className="text-[9px] text-white/20 mt-1">{msg.time}</p>
                 </div>
               </div>
             ))}
