@@ -351,9 +351,12 @@ export default function MockupV2() {
                               )}
                             </button>
 
-                            {/* Expanded detail — clean inline, no box */}
+                            {/* Expanded detail */}
                             {isSelected && (
-                              <div className="px-3 pb-2 ml-3.5 space-y-2">
+                              <div
+                                onClick={() => setExpandedItem(null)}
+                                className="mx-2 mb-1 ml-5 px-3 py-2 rounded-lg bg-white/[0.025] hover:bg-white/[0.04] cursor-pointer transition-all space-y-1.5"
+                              >
                                 {item.note && (
                                   <p className="text-xs text-white/40 leading-relaxed">{item.note}</p>
                                 )}
@@ -373,7 +376,7 @@ export default function MockupV2() {
                                     </>
                                   )}
                                 </div>
-                                {/* Actions — inline buttons, no borders */}
+                                {/* Actions */}
                                 <div className="flex items-center gap-2 pt-0.5">
                                   <button
                                     onClick={(e) => { e.stopPropagation(); setChatContext(item.id); }}
@@ -382,11 +385,17 @@ export default function MockupV2() {
                                     <MessageSquare className="h-3 w-3" /> Discuss
                                   </button>
                                   {item.status === "ready" && (
-                                    <button className="text-xs text-green-300/80 hover:text-green-300 flex items-center gap-1 transition-colors">
+                                    <button
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="text-xs text-green-300/80 hover:text-green-300 flex items-center gap-1 transition-colors"
+                                    >
                                       <Play className="h-3 w-3" /> Start
                                     </button>
                                   )}
-                                  <button className="text-xs text-white/25 hover:text-white/50 flex items-center gap-1 transition-colors">
+                                  <button
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-xs text-white/25 hover:text-white/50 flex items-center gap-1 transition-colors"
+                                  >
                                     <Calendar className="h-3 w-3" /> Schedule
                                   </button>
                                 </div>
@@ -485,7 +494,10 @@ export default function MockupV2() {
                     </span>
                   </button>
                   {expandedActivity === a.id && (
-                    <div className="ml-6 mb-1 px-2.5 space-y-1.5">
+                    <div
+                      onClick={() => setExpandedActivity(null)}
+                      className="ml-6 mb-1 mx-2 px-2.5 py-2 rounded-lg bg-white/[0.025] hover:bg-white/[0.04] cursor-pointer transition-all space-y-1.5"
+                    >
                       {a.description && (
                         <p className="text-[11px] text-white/35 leading-relaxed">{a.description}</p>
                       )}
