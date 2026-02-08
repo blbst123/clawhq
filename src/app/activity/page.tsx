@@ -281,14 +281,14 @@ export default function ActivityPage() {
     <div className="h-screen flex flex-col">
       {/* Header */}
       <div className="flex-shrink-0 border-b border-white/5 bg-white/[0.01] px-6 py-4">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-orange-500/10">
-              <Zap className="h-6 w-6 text-orange-400" />
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-1.5 rounded-lg bg-orange-500/10">
+              <Zap className="h-5 w-5 text-orange-400" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">Activity</h1>
-              <p className="text-sm text-white/40">{filtered.length} events</p>
+              <h1 className="text-lg font-bold text-white">Activity</h1>
+              <p className="text-xs text-white/40">{filtered.length} events</p>
             </div>
           </div>
 
@@ -316,12 +316,12 @@ export default function ActivityPage() {
         </div>
 
         {/* Source chips + Filter button row */}
-        <div className="flex items-center gap-3 mb-3">
-          {/* Source chips — smaller/sleeker */}
-          <div className="flex items-center gap-1.5 flex-1">
+        <div className="flex items-center gap-2.5 mb-2.5">
+          {/* Source chips — compact */}
+          <div className="flex items-center gap-1 flex-1">
             <button
               onClick={() => setActiveSourceFilter(null)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs transition-all ${
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] transition-all ${
                 activeSourceFilter === null
                   ? "bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/25"
                   : "bg-white/[0.03] text-white/40 hover:bg-white/[0.06]"
@@ -339,7 +339,7 @@ export default function ActivityPage() {
                 <button
                   key={key}
                   onClick={() => setActiveSourceFilter(isActive ? null : key)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs transition-all ${
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] transition-all ${
                     isActive ? `${config.activeBg} ${config.activeText}` : `bg-white/[0.03] text-white/40 hover:bg-white/[0.06]`
                   }`}
                 >
@@ -602,58 +602,21 @@ function CompactRow({ event, expanded, onToggle }: {
         <ChevronRight className={`h-3 w-3 text-white/15 flex-shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`} />
       </button>
 
-      {/* Expanded detail panel */}
+      {/* Expanded detail — inline, no box */}
       {expanded && (
-        <div className="px-6 pb-3">
-          <div className="ml-7 p-4 rounded-xl bg-white/[0.025] border border-white/5">
-            {event.description && (
-              <p className="text-sm text-white/60 leading-relaxed mb-3">{event.description}</p>
+        <div className="px-6 pb-2 ml-7 space-y-1.5">
+          {event.description && (
+            <p className="text-xs text-white/45 leading-relaxed">{event.description}</p>
+          )}
+          <div className="flex items-center gap-3 text-[11px] text-white/25">
+            <SourceBadge source={event.source} compact />
+            {event.model && <span>{event.model}</span>}
+            {event.duration && <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {event.duration}</span>}
+            {event.cost !== undefined && event.cost > 0 && <span>${event.cost.toFixed(2)}</span>}
+            {event.tokens && (
+              <span>{((event.tokens.in + event.tokens.out) / 1000).toFixed(1)}K tokens</span>
             )}
-
-            {/* Detail grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-              {event.duration && (
-                <div className="p-2 rounded-lg bg-white/[0.03]">
-                  <p className="text-[10px] text-white/25 mb-0.5">Duration</p>
-                  <p className="text-sm font-medium text-white/70 flex items-center gap-1">
-                    <Clock className="h-3 w-3 text-white/30" /> {event.duration}
-                  </p>
-                </div>
-              )}
-              {event.model && (
-                <div className="p-2 rounded-lg bg-white/[0.03]">
-                  <p className="text-[10px] text-white/25 mb-0.5">Model</p>
-                  <p className="text-sm font-medium text-white/70 flex items-center gap-1">
-                    <Sparkles className="h-3 w-3 text-orange-400/50" /> {event.model}
-                  </p>
-                </div>
-              )}
-              {event.cost !== undefined && event.cost > 0 && (
-                <div className="p-2 rounded-lg bg-white/[0.03]">
-                  <p className="text-[10px] text-white/25 mb-0.5">Cost</p>
-                  <p className="text-sm font-medium text-white/70 flex items-center gap-1">
-                    <DollarSign className="h-3 w-3 text-amber-400/50" /> ${event.cost.toFixed(2)}
-                  </p>
-                </div>
-              )}
-              {event.tokens && (
-                <div className="p-2 rounded-lg bg-white/[0.03]">
-                  <p className="text-[10px] text-white/25 mb-0.5">Tokens</p>
-                  <p className="text-sm font-medium text-white/70 flex items-center gap-1">
-                    <Zap className="h-3 w-3 text-yellow-400/50" /> {((event.tokens.in + event.tokens.out) / 1000).toFixed(1)}K
-                  </p>
-                  <p className="text-[10px] text-white/20">{event.tokens.in.toLocaleString()} in · {event.tokens.out.toLocaleString()} out</p>
-                </div>
-              )}
-            </div>
-
-            {/* Source + project */}
-            <div className="flex items-center gap-2 pt-2 border-t border-white/5">
-              <SourceBadge source={event.source} />
-              {event.project && (
-                <span className="text-[10px] px-2 py-0.5 rounded-md bg-white/5 text-white/30">{event.project}</span>
-              )}
-            </div>
+            {event.project && <span className="text-white/15">{event.project}</span>}
           </div>
         </div>
       )}
