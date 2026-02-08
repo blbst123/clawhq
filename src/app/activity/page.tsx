@@ -602,26 +602,21 @@ function CompactRow({ event, expanded, onToggle }: {
         <ChevronRight className={`h-3 w-3 text-white/15 flex-shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`} />
       </button>
 
-      {/* Expanded detail */}
+      {/* Expanded detail — inline, no box */}
       {expanded && (
-        <div
-          onClick={onToggle}
-          className="px-6 pb-2 ml-7 mr-6 cursor-pointer"
-        >
-          <div className="px-3 py-2 rounded-lg bg-white/[0.025] hover:bg-white/[0.04] transition-all space-y-1.5">
-            {event.description && (
-              <p className="text-xs text-white/45 leading-relaxed">{event.description}</p>
+        <div className="px-6 pb-2 ml-7 space-y-1.5">
+          {event.description && (
+            <p className="text-xs text-white/45 leading-relaxed">{event.description}</p>
+          )}
+          <div className="flex items-center gap-3 text-[11px] text-white/25">
+            <SourceBadge source={event.source} compact />
+            {event.model && <span>{event.model}</span>}
+            {event.duration && <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {event.duration}</span>}
+            {event.cost !== undefined && event.cost > 0 && <span>${event.cost.toFixed(2)}</span>}
+            {event.tokens && (
+              <span>{((event.tokens.in + event.tokens.out) / 1000).toFixed(1)}K tokens</span>
             )}
-            <div className="flex items-center gap-3 text-[11px] text-white/25">
-              <SourceBadge source={event.source} compact />
-              {event.model && <span>{event.model}</span>}
-              {event.duration && <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {event.duration}</span>}
-              {event.cost !== undefined && event.cost > 0 && <span>${event.cost.toFixed(2)}</span>}
-              {event.tokens && (
-                <span>{((event.tokens.in + event.tokens.out) / 1000).toFixed(1)}K tokens</span>
-              )}
-              {event.project && <span className="text-white/15">{event.project}</span>}
-            </div>
+            {event.project && <span className="text-white/15">{event.project}</span>}
           </div>
         </div>
       )}
