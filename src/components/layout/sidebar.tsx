@@ -22,7 +22,6 @@ import { useGateway } from "@/lib/gateway-context";
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Activity", href: "/activity", icon: Zap },
-  { name: "Activity v2", href: "/activity-v2", icon: Zap },
   { name: "Calendar", href: "/calendar", icon: CalendarDays },
   { name: "Tasks", href: "/tasks", icon: ListTodo },
   { name: "Costs", href: "/costs", icon: DollarSign },
