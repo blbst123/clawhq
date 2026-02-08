@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
+import { useGateway } from "@/lib/gateway-context";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -35,6 +36,7 @@ const bottomNav = [
 export function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const { status: gwStatus } = useGateway();
 
   return (
     <div 
@@ -134,12 +136,25 @@ export function Sidebar() {
             <div className="h-8 w-8 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white text-sm font-medium">
               L
             </div>
-            <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-green-500 border-2 border-[#151210] glow-green" />
+            <div className={cn(
+              "absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#151210]",
+              gwStatus === "connected" ? "bg-green-500 glow-green" :
+              gwStatus === "connecting" ? "bg-orange-400 animate-pulse" :
+              "bg-white/20"
+            )} />
           </div>
           {!collapsed && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white truncate">Lolo</p>
-              <p className="text-xs text-green-400">Online</p>
+              <p className={cn("text-xs",
+                gwStatus === "connected" ? "text-green-400" :
+                gwStatus === "connecting" ? "text-orange-400" :
+                "text-white/30"
+              )}>
+                {gwStatus === "connected" ? "Connected" :
+                 gwStatus === "connecting" ? "Connecting..." :
+                 "Not connected"}
+              </p>
             </div>
           )}
         </div>
