@@ -174,6 +174,19 @@ export class GatewayRPC {
     return this.request<unknown>("chat.history", { sessionKey, ...opts });
   }
 
+  async chatSend(sessionKey: string, message: string, opts?: { idempotencyKey?: string }) {
+    return this.request<{ runId?: string; status?: string }>("chat.send", {
+      sessionKey,
+      message,
+      deliver: false,
+      idempotencyKey: opts?.idempotencyKey ?? makeId(),
+    });
+  }
+
+  async chatAbort(sessionKey: string) {
+    return this.request<unknown>("chat.abort", { sessionKey });
+  }
+
   async getConfig() {
     return this.request<unknown>("config.get");
   }
@@ -184,6 +197,24 @@ export class GatewayRPC {
 
   async getChannelsStatus() {
     return this.request<unknown>("channels.status");
+  }
+
+  async listSkills(agentId?: string) {
+    return this.request<{ skills: Array<{
+      name: string; description: string; source: string; bundled: boolean;
+      filePath: string; baseDir: string; skillKey: string;
+      emoji?: string | null; homepage?: string | null;
+      always?: boolean; disabled?: boolean; blockedByAllowlist?: boolean;
+      eligible: boolean;
+      requirements?: { bins?: string[]; anyBins?: string[]; env?: string[]; config?: string[]; os?: string[] } | null;
+      missing?: { bins: string[]; env: string[]; config: string[]; os: string[] } | null;
+      configChecks?: Record<string, unknown> | null;
+      install?: unknown[] | null;
+    }> }>("skills.status", agentId ? { agentId } : {});
+  }
+
+  async readSkill(location: string) {
+    return this.request<{ content: string }>("clawhq.skills.read", { location });
   }
 
   async listAgents() {

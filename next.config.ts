@@ -2,7 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "export",
-  // Static export — no server needed, gateway serves these files directly
+  trailingSlash: true,
+  // No basePath — gateway serves this at root via controlUi.root
 };
 
 export default nextConfig;

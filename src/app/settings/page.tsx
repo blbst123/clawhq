@@ -36,7 +36,9 @@ export default function SettingsPage() {
   // Fetch gateway info when connected
   useEffect(() => {
     if (status === "connected") {
-      rpc.getStatus().then(setGatewayInfo).catch(() => {});
+      rpc.getStatus().then((data) => {
+        setGatewayInfo(data);
+      }).catch(() => {});
       rpc.getAgentIdentity().then(setAgentInfo).catch(() => {});
     } else {
       setGatewayInfo(null);
@@ -94,9 +96,16 @@ export default function SettingsPage() {
             {/* Gateway Info */}
             {gatewayInfo && (
               <div className="rounded-xl bg-white/[0.02] border border-white/5 overflow-hidden">
-                <div className="px-5 py-3 border-b border-white/5 flex items-center gap-3">
-                  <Zap className="h-4 w-4 text-orange-400" />
-                  <h2 className="text-sm font-semibold text-white">Gateway</h2>
+                <div className="px-5 py-3 border-b border-white/5 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Zap className="h-4 w-4 text-orange-400" />
+                    <h2 className="text-sm font-semibold text-white">Gateway</h2>
+                  </div>
+                  {gatewayInfo.version ? (
+                    <span className="text-xs text-white/40 font-mono">
+                      v{String(gatewayInfo.version)}
+                    </span>
+                  ) : null}
                 </div>
                 <div className="p-5 space-y-2">
                   {Object.entries(gatewayInfo).map(([key, value]) => (
@@ -145,8 +154,7 @@ export default function SettingsPage() {
                       onClick={async () => {
                         try {
                           const result = await rpc.request(method);
-                          console.log(`[ClawHQ] ${method}:`, result);
-                          alert(`Success! Check browser console for ${method} response.`);
+                          alert(`${method}:\n${JSON.stringify(result, null, 2).slice(0, 2000)}`);
                         } catch (err) {
                           alert(`Error: ${err}`);
                         }

@@ -24,7 +24,7 @@ const GatewayContext = createContext<GatewayContextValue | null>(null);
 
 export function GatewayProvider({ children }: { children: React.ReactNode }) {
   const rpcRef = useRef<GatewayRPC>(getGateway());
-  const [status, setStatus] = useState<ConnectionStatus>("disconnected");
+  const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [config, setConfig] = useState<GatewayConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
 

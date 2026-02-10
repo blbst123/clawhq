@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/layout/sidebar";
 import { GatewayProvider } from "@/lib/gateway-context";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,7 +34,9 @@ export default function RootLayout({
           <div className="flex h-screen bg-gradient-dark">
             <Sidebar />
             <main className="flex-1 overflow-auto">
-              {children}
+              <ErrorBoundary>
+                {children}
+              </ErrorBoundary>
             </main>
           </div>
         </GatewayProvider>

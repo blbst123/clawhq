@@ -1,248 +1,716 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import {
-  Sparkles,
+  Inbox,
   CheckCircle2,
-  Clock,
-  DollarSign,
   Zap,
-  MessageSquare,
-  Send,
+  Loader2,
   ChevronDown,
   ChevronRight,
   Plus,
   Play,
+  Pause,
+  Check,
+  X,
+  Search,
+  Activity,
   Calendar,
   RefreshCw,
+  Sparkles,
+  MessageSquare,
   Terminal,
   Globe,
-  Activity,
   FileText,
-  ArrowRight,
-  Lightbulb,
+  FileCode,
+  Code,
+  Send,
+  Database,
+  Eye,
+  Bot,
+  Cpu,
+  Wrench,
+  GitBranch,
+  Mail,
+  CloudUpload,
+  Pencil,
+  Trash2,
   Hash,
-  Loader2,
+  FolderPlus,
+  MoreHorizontal,
 } from "lucide-react";
+import { useGateway } from "@/lib/gateway-context";
+import { cn } from "@/lib/utils";
+import { TaskChat } from "@/components/task-chat";
+import { PriorityIcon, priOptions, projLabel } from "@/components/ui/priority-icon";
+import { StatusIcon } from "@/components/ui/status-icon";
+import { useSettings } from "@/lib/use-settings";
+import { useProjects } from "@/lib/use-projects";
+import { useTasks } from "@/lib/use-tasks";
+import { timeAgo, formatTime, priSort, generateSessionKey } from "@/lib/task-utils";
+import type { Task } from "@/lib/types";
 
 // ─── Types ───
-type TriggerSource =
-  | { type: "cron"; jobName: string; schedule: string }
-  | { type: "chat"; channel: string; user: string }
-  | { type: "backlog"; itemId: string; itemTitle: string }
-  | { type: "system"; reason: string }
-  | { type: "webhook"; service: string; event: string }
-  | { type: "heartbeat" };
 
-interface QueueItem {
+// Task type imported from @/lib/types
+
+interface ActivityItem {
   id: string;
-  title: string;
-  note?: string;
-  status: "idea" | "discussing" | "ready" | "running";
-  capturedFrom: { type: "chat"; channel: string } | { type: "manual" } | { type: "cron-suggestion" };
-  capturedAt: string;
-  messages: number;
-}
-
-interface ProjectGroup {
-  name: string;
-  color: string;
-  items: QueueItem[];
-}
-
-interface ActivityEvent {
-  id: string;
-  action: string;
-  description?: string;
-  task: string;
+  timestamp: number;
   time: string;
-  type: "complete" | "action" | "start" | "error" | "info";
-  source: TriggerSource;
+  date: string;
+  description: string;
+  icon: typeof Bot;
+  iconColor: string;
+  sourceType: "discord" | "telegram" | "cron" | "other";
+  channelName: string;
+  trigger?: string;
+  steps: { icon: typeof Bot; description: string }[];
+  responsePreviews: string[];
   model?: string;
-  cost?: number;
-  duration?: string;
-  tokens?: { in: number; out: number };
+  stepCount: number;
 }
-
-// ─── Data ───
-const projects: ProjectGroup[] = [
-  {
-    name: "Lit.trade", color: "purple",
-    items: [
-      { id: "q1", title: "Add referral program", note: "User-to-user referrals with fee discount for first 30 days", status: "discussing", capturedFrom: { type: "chat", channel: "Telegram" }, capturedAt: "2h ago", messages: 4 },
-      { id: "q2", title: "Trade journaling MVP", note: "Core differentiator — let users tag and annotate trades", status: "ready", capturedFrom: { type: "chat", channel: "#lit-trade" }, capturedAt: "Yesterday", messages: 8 },
-      { id: "q3", title: "Competitor analysis: dYdX, GMX", status: "running", capturedFrom: { type: "chat", channel: "Telegram" }, capturedAt: "3h ago", messages: 0 },
-      { id: "q8", title: "Fee tier restructuring", note: "Consider volume-based discounts", status: "idea", capturedFrom: { type: "chat", channel: "#lit-trade" }, capturedAt: "4d ago", messages: 1 },
-    ]
-  },
-  {
-    name: "Content", color: "red",
-    items: [
-      { id: "q4", title: "Video: Why AI agents need souls", status: "discussing", capturedFrom: { type: "chat", channel: "Telegram" }, capturedAt: "5h ago", messages: 3 },
-      { id: "q5", title: "Set up Xiaohongshu schedule", status: "idea", capturedFrom: { type: "manual" }, capturedAt: "2d ago", messages: 0 },
-      { id: "q9", title: "YouTube channel branding", status: "idea", capturedFrom: { type: "manual" }, capturedAt: "5d ago", messages: 0 },
-    ]
-  },
-  {
-    name: "ClawHQ", color: "orange",
-    items: [
-      { id: "q6", title: "Real-time OpenClaw connection", note: "Hook up to actual gateway API", status: "idea", capturedFrom: { type: "chat", channel: "#claw-hq" }, capturedAt: "Today", messages: 2 },
-    ]
-  },
-  {
-    name: "Chartr", color: "green",
-    items: [
-      { id: "q7", title: "Landing page copy", note: "Clear value prop for web3 legal audience", status: "idea", capturedFrom: { type: "manual" }, capturedAt: "3d ago", messages: 0 },
-    ]
-  },
-];
-
-const activeTasks = [
-  { id: "t1", title: "Content Research: AI job displacement", progress: 65, startedAt: "3:58am", source: { type: "cron" as const, jobName: "content-research", schedule: "daily 3:30am" }, project: "Content" },
-  { id: "t2", title: "Competitor analysis: dYdX, GMX", progress: 20, startedAt: "4:22pm", source: { type: "backlog" as const, itemId: "q3", itemTitle: "Competitor analysis" }, project: "Lit.trade" },
-];
-
-const recentActivity: ActivityEvent[] = [
-  { id: "a1", action: "Morning Brief sent", description: "Daily summary with market overview, calendar, and priority tasks.", task: "Morning Brief", time: "8:32am", type: "complete", source: { type: "cron", jobName: "morning-brief", schedule: "daily 8:30am" }, model: "Sonnet", cost: 0.24, duration: "2m 05s", tokens: { in: 1250, out: 890 } },
-  { id: "a4", action: "Lit Analysis complete", description: "24h volume: $1.2M (+12%), fees: $1.2K.", task: "Lit Analysis", time: "7:45am", type: "complete", source: { type: "cron", jobName: "lit-analysis", schedule: "daily 7:30am" }, model: "Sonnet", cost: 0.18, duration: "1m 12s" },
-  { id: "a6", action: "Dashboard deployed to Vercel", task: "ClawHQ Dev", time: "6:51am", type: "complete", source: { type: "chat", channel: "#claw-hq", user: "Bill" }, model: "Opus", cost: 0.92, duration: "45m" },
-  { id: "a7", action: "Heartbeat — all clear", task: "System", time: "6:00am", type: "info", source: { type: "heartbeat" } },
-  { id: "a8", action: "Referral program research", description: "Compiled 5 referral models from competing platforms.", task: "Research", time: "5:30am", type: "complete", source: { type: "backlog", itemId: "q1", itemTitle: "Add referral program to Lit" }, model: "Sonnet", cost: 0.15, duration: "3m" },
-  { id: "a9", action: "Trade journal schema drafted", task: "Lit.trade", time: "Yesterday", type: "complete", source: { type: "chat", channel: "Telegram", user: "Bill" }, model: "Opus", cost: 0.45, duration: "12m" },
-];
-
-const chatMessages: Record<string, Array<{ role: string; content: string; time: string }>> = {
-  general: [
-    { role: "user", content: "Quick summary of today", time: "8:35am" },
-    { role: "assistant", content: "Morning! Here's the rundown:\n\n✅ Morning Brief sent\n✅ Lit Analysis — revenue up 12%\n🔄 Content research — 65% done\n🔄 Competitor analysis — just started\n\n4 items in your queue need attention. Trade journaling MVP is ready to build whenever you say go.", time: "8:35am" },
-  ],
-  q1: [
-    { role: "user", content: "We should add a referral program to Lit", time: "2h ago" },
-    { role: "assistant", content: "I looked into how other builders handle referrals:\n\n• Most use builder code sharing\n• Some add tiered rewards — 10% of fees for 30 days\n• dYdX does epoch-based rewards\n\nDo we want user-to-user referrals on top of our builder code?", time: "2h ago" },
-    { role: "user", content: "Yeah user to user. Like give someone a link and they get a fee discount", time: "2h ago" },
-    { role: "assistant", content: "Doable. We'd need:\n1. Unique referral links per user\n2. Fee discount logic (maybe 5% off for 30 days)\n3. Referrer reward (% of referee's fees)\n\nWant me to draft the full spec or research discount % first?", time: "2h ago" },
-  ],
-  q2: [
-    { role: "user", content: "The trade journal should be our main differentiator", time: "Yesterday" },
-    { role: "assistant", content: "Agreed. Core features:\n\n• Auto-import trades from Hyperliquid\n• Tag trades (thesis, mistake, FOMO, etc.)\n• Add notes/annotations after close\n• Performance by tag\n\nTraders who journal improve. Once their history is in Lit, they won't leave. Ready to start the MVP?", time: "Yesterday" },
-  ],
-  q4: [
-    { role: "user", content: "I want to make a video about why AI agents need personality", time: "5h ago" },
-    { role: "assistant", content: "Love it. Rough outline:\n\n**Hook:** \"Your AI assistant is boring. Here's why that matters.\"\n\n1. Personality = trust\n2. SOUL.md — giving your agent identity\n3. The uncanny valley of \"helpful but hollow\"\n4. Real example: how Lolo evolved\n\nFull script? What platform — 抖音 or YouTube?", time: "5h ago" },
-  ],
-};
 
 // ─── Helpers ───
-const dotColor = (c: string) => c === "purple" ? "bg-purple-400" : c === "red" ? "bg-red-400" : c === "orange" ? "bg-orange-400" : c === "green" ? "bg-green-400" : c === "blue" ? "bg-blue-400" : "bg-white/40";
-const dotColorMuted = (c: string) => c === "purple" ? "bg-purple-400/40" : c === "red" ? "bg-red-400/40" : c === "orange" ? "bg-orange-400/40" : c === "green" ? "bg-green-400/40" : "bg-white/20";
 
-const statusCfg = (s: QueueItem["status"]) => {
-  switch (s) {
-    case "idea": return { label: "Idea", emoji: "💭", text: "text-white/40", bg: "bg-white/5", border: "border-white/8" };
-    case "discussing": return { label: "Discussing", emoji: "💬", text: "text-blue-300", bg: "bg-blue-500/10", border: "border-blue-500/20" };
-    case "ready": return { label: "Ready", emoji: "▶", text: "text-green-300", bg: "bg-green-500/10", border: "border-green-500/20" };
-    case "running": return { label: "Running", emoji: "🔄", text: "text-orange-300", bg: "bg-orange-500/10", border: "border-orange-500/20" };
+// timeAgo, formatTime, priSort imported from @/lib/task-utils
+
+// ─── Status Icon (same as planning page) ───
+
+// StatusIcon imported from @/components/ui/status-icon
+
+// ─── Activity parsing (reused from activity page) ───
+
+function safeStr(v: unknown): string { return typeof v === "string" ? v : v == null ? "" : String(v); }
+
+function extractText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) return content.filter((b: Record<string, unknown>) => b?.type === "text").map((b: Record<string, unknown>) => safeStr(b.text)).join("\n");
+  return "";
+}
+
+function describeToolCall(name: string, args: Record<string, unknown>): string {
+  const s = (v: unknown) => typeof v === "string" ? v : "";
+  switch (name) {
+    case "exec": {
+      const cmd = s(args.command);
+      if (cmd.includes("git push")) return "Pushed to git";
+      if (cmd.includes("git pull")) return "Pulled from git";
+      if (cmd.includes("git commit")) return "Committed changes";
+      if (cmd.includes("gog-run gmail")) return "Checked email";
+      if (cmd.includes("gog-run calendar")) return "Checked calendar";
+      if (cmd.includes("next build")) return "Built Next.js app";
+      if (cmd.includes("vercel")) return "Deployed to Vercel";
+      return "Ran shell command";
+    }
+    case "Read": { const f = s(args.file_path || args.path).split("/").pop() || "file"; return f.includes("MEMORY") ? "Read memory" : `Read ${f}`; }
+    case "Write": { const f = s(args.file_path || args.path).split("/").pop() || "file"; return f.includes("memory/") ? "Updated memory" : `Wrote ${f}`; }
+    case "Edit": { return `Edited ${s(args.file_path || args.path).split("/").pop() || "file"}`; }
+    case "web_search": return `Searched: "${s(args.query).slice(0, 40)}"`;
+    case "web_fetch": return "Fetched web page";
+    case "message": return s(args.action) === "send" ? `Sent message${s(args.target) ? ` to ${s(args.target)}` : ""}` : `Message: ${s(args.action)}`;
+    case "memory_search": return "Searched memory";
+    case "memory_get": return "Retrieved memory";
+    case "browser": return "Controlled browser";
+    case "sessions_spawn": return "Spawned sub-agent";
+    case "cron": return `Cron: ${s(args.action)}`;
+    default: return `Used ${name}`;
   }
-};
+}
 
-const captureLabel = (f: QueueItem["capturedFrom"]) => f.type === "chat" ? `via ${f.channel}` : f.type === "manual" ? "added manually" : "agent suggestion";
+function getToolIcon(name: string, args: Record<string, unknown>): typeof Bot {
+  if (name === "exec") {
+    const cmd = typeof args.command === "string" ? args.command : "";
+    if (cmd.includes("git")) return GitBranch;
+    if (cmd.includes("gog-run gmail")) return Mail;
+    if (cmd.includes("gog-run calendar")) return Calendar;
+    if (cmd.includes("next build") || cmd.includes("vercel")) return CloudUpload;
+    return Terminal;
+  }
+  return ({ Read: FileText, Write: FileCode, Edit: Code, web_search: Globe, web_fetch: Globe, message: Send, memory_search: Database, memory_get: Database, browser: Eye, cron: RefreshCw, nodes: Cpu, sessions_spawn: Bot }[name] || Wrench) as typeof Bot;
+}
 
-const srcIcon = (t: string) => t === "cron" ? RefreshCw : t === "chat" ? MessageSquare : t === "backlog" ? FileText : t === "webhook" ? Globe : t === "heartbeat" ? Activity : Terminal;
-const srcStyle = (t: string) => t === "cron" ? "bg-orange-500/10 text-orange-300 border-orange-500/20" : t === "chat" ? "bg-blue-500/10 text-blue-300 border-blue-500/20" : t === "backlog" ? "bg-purple-500/10 text-purple-300 border-purple-500/20" : t === "webhook" ? "bg-cyan-500/10 text-cyan-300 border-cyan-500/20" : "bg-white/5 text-white/40 border-white/10";
-const srcLabel = (s: TriggerSource) => s.type === "chat" ? s.channel : s.type === "cron" ? "Cron" : s.type === "backlog" ? "Queue" : s.type === "webhook" ? s.service : s.type === "heartbeat" ? "Heartbeat" : "System";
-const actDot = (t: string) => t === "error" ? "bg-red-400" : "bg-white/25";
+const IC = "text-white/30";
 
-const SrcBadge = ({ source }: { source: TriggerSource }) => {
-  const Icon = srcIcon(source.type);
+function summarizeTools(tools: { name: string; args: Record<string, unknown> }[]): { description: string; icon: typeof Bot; iconColor: string } {
+  if (tools.length === 0) return { description: "Responded to conversation", icon: MessageSquare, iconColor: IC };
+  const cmds = tools.filter(t => t.name === "exec").map(t => typeof t.args.command === "string" ? t.args.command : "");
+  const names = tools.map(t => t.name);
+  if (cmds.some(c => c.includes("git push"))) return { description: cmds.some(c => c.includes("next build")) ? "Built & deployed" : "Pushed to git", icon: GitBranch, iconColor: "text-green-400" };
+  if (cmds.some(c => c.includes("next build"))) return { description: "Built app", icon: CloudUpload, iconColor: IC };
+  if (cmds.some(c => c.includes("vercel"))) return { description: "Deployed to Vercel", icon: CloudUpload, iconColor: "text-green-400" };
+  if (cmds.some(c => c.includes("gog-run gmail"))) return { description: "Checked email", icon: Mail, iconColor: IC };
+  if (cmds.some(c => c.includes("gog-run calendar"))) return { description: "Checked calendar", icon: Calendar, iconColor: IC };
+  if (names.includes("web_search")) { const q = typeof tools.find(t => t.name === "web_search")?.args.query === "string" ? tools.find(t => t.name === "web_search")!.args.query as string : ""; return { description: `Researched: ${q.slice(0, 40)}`, icon: Globe, iconColor: IC }; }
+  if (names.includes("message")) { const t = tools.find(t => t.name === "message"); return { description: `Sent message${typeof t?.args.target === "string" ? ` to ${t.args.target}` : ""}`, icon: Send, iconColor: IC }; }
+  if (names.includes("sessions_spawn")) return { description: "Spawned background task", icon: Bot, iconColor: IC };
+  if (names.includes("browser")) return { description: "Browsed the web", icon: Eye, iconColor: IC };
+  const writes = tools.filter(t => t.name === "Write" || t.name === "Edit");
+  if (writes.length > 0) { const f = (typeof writes[0].args.file_path === "string" ? writes[0].args.file_path : typeof writes[0].args.path === "string" ? writes[0].args.path : "").split("/").pop() || "files"; return { description: writes.length > 1 ? `Updated ${writes.length} files` : `Updated ${f}`, icon: FileCode, iconColor: IC }; }
+  return { description: describeToolCall(tools[0].name, tools[0].args), icon: getToolIcon(tools[0].name, tools[0].args), iconColor: IC };
+}
+
+function extractToolUse(content: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(content)) return [];
+  return content.filter((b: Record<string, unknown>) => b && (b.type === "tool_use" || b.type === "toolCall"));
+}
+
+interface RawEvent {
+  id: string;
+  timestamp: number;
+  sessionKey: string;
+  sessionLabel?: string;
+  kind: "user" | "assistant" | "tool" | "heartbeat";
+  text?: string;
+  toolName?: string;
+  toolArgs?: Record<string, unknown>;
+  model?: string;
+}
+
+function parseAndGroup(sessionKey: string, sessionLabel: string, rawMessages: unknown): ActivityItem[] {
+  if (!rawMessages) return [];
+  const messages: unknown[] = Array.isArray(rawMessages) ? rawMessages :
+    (rawMessages as Record<string, unknown>)?.messages != null && Array.isArray((rawMessages as Record<string, unknown>).messages)
+      ? (rawMessages as Record<string, unknown>).messages as unknown[] : [];
+
+  const raw: RawEvent[] = [];
+  for (let i = 0; i < messages.length; i++) {
+    try {
+      const msg = messages[i] as Record<string, unknown>;
+      if (!msg || typeof msg !== "object") continue;
+      const role = safeStr(msg.role);
+      const rawTs = msg.timestamp ?? msg.ts ?? msg.createdAt;
+      const ts = typeof rawTs === "number" ? rawTs : typeof rawTs === "string" ? new Date(rawTs).getTime() : Date.now();
+      const tsMs = ts < 1e12 ? ts * 1000 : ts;
+      const content = msg.content;
+
+      if (role === "user") {
+        const text = extractText(content);
+        const isHb = text.includes("HEARTBEAT") || text.includes("heartbeat");
+        raw.push({ id: `${sessionKey}-${i}`, timestamp: tsMs, sessionKey, sessionLabel, kind: isHb ? "heartbeat" : "user", text });
+      } else if (role === "assistant") {
+        const contentArr = Array.isArray(content) ? content as Record<string, unknown>[] : [];
+        let seq = 0;
+        if (contentArr.length > 0) {
+          for (const block of contentArr) {
+            if (block?.type === "tool_use" || block?.type === "toolCall") {
+              const toolArgs = (block as Record<string, unknown>).input ?? (block as Record<string, unknown>).arguments;
+              raw.push({ id: `${sessionKey}-${i}-t${seq}`, timestamp: tsMs + seq, sessionKey, sessionLabel, kind: "tool", toolName: safeStr(block.name), toolArgs: (typeof toolArgs === "object" && toolArgs != null) ? toolArgs as Record<string, unknown> : undefined, model: safeStr(msg.model) });
+              seq++;
+            } else if (block?.type === "text") {
+              const t = safeStr(block.text).trim();
+              if (t && t !== "HEARTBEAT_OK" && t !== "NO_REPLY") {
+                raw.push({ id: `${sessionKey}-${i}-a${seq}`, timestamp: tsMs + seq, sessionKey, sessionLabel, kind: "assistant", text: t, model: safeStr(msg.model) });
+                seq++;
+              } else if (t === "HEARTBEAT_OK" || t === "NO_REPLY") {
+                raw.push({ id: `${sessionKey}-${i}-hb`, timestamp: tsMs, sessionKey, sessionLabel, kind: "heartbeat", text: t });
+              }
+            }
+          }
+        } else {
+          const text = extractText(content).trim();
+          if (text && text !== "HEARTBEAT_OK" && text !== "NO_REPLY") {
+            raw.push({ id: `${sessionKey}-${i}-a`, timestamp: tsMs, sessionKey, sessionLabel, kind: "assistant", text, model: safeStr(msg.model) });
+          } else if (text === "HEARTBEAT_OK" || text === "NO_REPLY") {
+            raw.push({ id: `${sessionKey}-${i}-hb`, timestamp: tsMs, sessionKey, sessionLabel, kind: "heartbeat", text });
+          }
+        }
+      }
+    } catch { continue; }
+  }
+
+  const items: ActivityItem[] = [];
+  let groupStart = 0;
+
+  function flushGroup(start: number, end: number) {
+    const group = raw.slice(start, end);
+    if (group.length === 0) return;
+    const userMsg = group.find(e => e.kind === "user");
+    const hbMsg = group.find(e => e.kind === "heartbeat");
+    const tools = group.filter(e => e.kind === "tool");
+    const assistantMsgs = group.filter(e => e.kind === "assistant" && e.text);
+    const first = group[0];
+    const isHeartbeat = !!hbMsg && tools.length === 0;
+    const toolData = tools.map(t => ({ name: t.toolName || "unknown", args: t.toolArgs || {} }));
+    const { description, icon, iconColor } = isHeartbeat
+      ? { description: "Heartbeat check", icon: Activity, iconColor: "text-white/15" }
+      : tools.length > 0 ? summarizeTools(toolData) : { description: "Responded to conversation", icon: MessageSquare, iconColor: IC };
+    const steps = tools.map(t => ({ icon: getToolIcon(t.toolName || "", t.toolArgs || {}), description: describeToolCall(t.toolName || "unknown", t.toolArgs || {}) }));
+    items.push({
+      id: first.id, timestamp: first.timestamp, time: formatTime(first.timestamp), date: formatDate(first.timestamp),
+      description, icon, iconColor, sourceType: getSourceType(first.sessionLabel), channelName: parseChannel(first.sessionLabel),
+      trigger: userMsg?.text?.slice(0, 120), steps, responsePreviews: assistantMsgs.map(a => a.text!.slice(0, 300)),
+      model: assistantMsgs.at(-1)?.model || tools[0]?.model, stepCount: tools.length,
+    });
+  }
+
+  for (let i = 0; i < raw.length; i++) {
+    if (raw[i].kind === "user" || raw[i].kind === "heartbeat") {
+      if (i > groupStart) flushGroup(groupStart, i);
+      groupStart = i;
+    }
+  }
+  flushGroup(groupStart, raw.length);
+  return items;
+}
+
+function formatDate(ts: number): string {
+  const d = new Date(ts); const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 86400000);
+  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  if (day.getTime() === today.getTime()) return "Today";
+  if (day.getTime() === yesterday.getTime()) return "Yesterday";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function parseChannel(label?: string): string {
+  if (!label) return "";
+  const m = label.match(/#([\w-]+)$/);
+  if (m) return `#${m[1]}`;
+  if (label.includes("telegram")) return "Telegram";
+  return "";
+}
+
+function getSourceType(label?: string): "discord" | "telegram" | "cron" | "other" {
+  const l = (label || "").toLowerCase();
+  if (l.includes("discord")) return "discord";
+  if (l.includes("telegram")) return "telegram";
+  if (l.includes("cron")) return "cron";
+  return "other";
+}
+
+function SourceIcon({ type, className }: { type: string; className?: string }) {
+  if (type === "discord") return <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z" /></svg>;
+  if (type === "telegram") return <Send className={className} />;
+  if (type === "cron") return <RefreshCw className={className} />;
+  return <Bot className={className} />;
+}
+
+const srcColor: Record<string, string> = { discord: "text-indigo-400", telegram: "text-sky-400", cron: "text-orange-400", other: "text-white/25" };
+
+// ─── Tasks cache ───
+
+// Tasks cache moved to useTasks hook
+
+// ─── Activity cache ───
+
+let activityCache: { data: ActivityItem[]; ts: number } | null = null;
+const ACTIVITY_CACHE_TTL = 60_000;
+
+// ─── Create Menu (+ button dropdown) ───
+
+function CreateMenu({ onNewTask, onNewProject }: {
+  onNewTask: () => void;
+  onNewProject: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
   return (
-    <span className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded-md border ${srcStyle(source.type)}`}>
-      <Icon className="h-3 w-3" />{srcLabel(source)}
-    </span>
-  );
-};
+    <div className="relative" ref={menuRef}>
+      <button
+        onClick={() => setOpen(!open)}
+        className={cn(
+          "h-6 w-6 rounded-md flex items-center justify-center transition-all",
+          open ? "bg-orange-500/20 text-orange-300" : "text-white/25 hover:text-white/50 hover:bg-white/[0.06]"
+        )}
+        title="Create new…"
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </button>
 
-// ═══════════════════════════════════════════════
+      {open && (
+        <div className="absolute right-0 top-8 z-50 w-56 rounded-xl border border-white/[0.08] bg-[#1a1816] shadow-2xl shadow-black/60 overflow-hidden">
+          <div className="p-1.5">
+            <button
+              onClick={() => { setOpen(false); onNewTask(); }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-white/[0.05] transition-colors group"
+            >
+              <div className="h-7 w-7 rounded-lg bg-orange-500/10 flex items-center justify-center group-hover:bg-orange-500/20 transition-colors">
+                <Plus className="h-3.5 w-3.5 text-orange-400" />
+              </div>
+              <div>
+                <div className="text-[13px] font-medium text-white/80">New Task</div>
+                <div className="text-[11px] text-white/30">Add to inbox</div>
+              </div>
+            </button>
+            <button
+              onClick={() => { setOpen(false); onNewProject(); }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-white/[0.05] transition-colors group"
+            >
+              <div className="h-7 w-7 rounded-lg bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+                <FolderPlus className="h-3.5 w-3.5 text-blue-400" />
+              </div>
+              <div>
+                <div className="text-[13px] font-medium text-white/80">New Project</div>
+                <div className="text-[11px] text-white/30">Name & color</div>
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// Dashboard Page
+// ═══════════════════════════════════════════════════════
+
 export default function Dashboard() {
-  const [chatContext, setChatContext] = useState("general");
-  const [expandedActivity, setExpandedActivity] = useState<string | null>(null);
-  const [expandedItem, setExpandedItem] = useState<string | null>(null);
-  // Projects start collapsed except first one
-  const [openProjects, setOpenProjects] = useState<Set<string>>(new Set(["Lit.trade"]));
+  const { rpc, status: connStatus } = useGateway();
+  const { settings, saveSettings, getProjectColor } = useSettings();
+  const { name: agentName } = useAgentIdentity();
+
+  // ─── Tasks (shared hook) ───
+  const { tasks, loading: capturesLoading, saving, saveTasks, updateTask, deleteTask, addTask: addTaskToStore } = useTasks();
+
+  // ─── Activity state ───
+  const [activityItems, setActivityItems] = useState<ActivityItem[]>(activityCache?.data ?? []);
+  const [activityLoading, setActivityLoading] = useState(!activityCache);
+
+  // ─── UI state ───
+  const [activeChatTaskId, setActiveChatTaskId] = useState<string | null>(null);
+  const [pendingKickoff, setPendingKickoff] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [expandedActivityId, setExpandedActivityId] = useState<string | null>(null);
+  const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
 
   // ─── Resizable columns ───
-  const MIN_W = 340;
-  const MIN_CHAT = 280;
-  const [leftW, setLeftW] = useState(380);
-  const [midW, setMidW] = useState(380);
+  const MIN_W = 320;
+  const MIN_CHAT = 320;
+  const [leftW, setLeftW] = useState(() => {
+    if (typeof window !== "undefined") { const v = localStorage.getItem("clawhq-dash-leftW"); if (v) return Number(v); }
+    return 340;
+  });
+  const [midW, setMidW] = useState(() => {
+    if (typeof window !== "undefined") { const v = localStorage.getItem("clawhq-dash-midW"); if (v) return Number(v); }
+    return 380;
+  });
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef<"left" | "right" | null>(null);
   const startX = useRef(0);
   const startLeftW = useRef(0);
   const startMidW = useRef(0);
+  const leftWRef = useRef(leftW);
+  const midWRef = useRef(midW);
+  useEffect(() => { leftWRef.current = leftW; }, [leftW]);
+  useEffect(() => { midWRef.current = midW; }, [midW]);
 
-  const onMouseDown = useCallback((which: "left" | "right") => (e: React.MouseEvent) => {
+  const onMouseDownLeft = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    dragging.current = which;
+    dragging.current = "left";
     startX.current = e.clientX;
     startLeftW.current = leftW;
+  }, [leftW]);
+
+  const onMouseDownRight = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragging.current = "right";
+    startX.current = e.clientX;
     startMidW.current = midW;
-  }, [leftW, midW]);
+  }, [midW]);
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
       if (!dragging.current || !containerRef.current) return;
       const delta = e.clientX - startX.current;
       const totalW = containerRef.current.offsetWidth;
-
       if (dragging.current === "left") {
-        const newLeft = Math.max(MIN_W, Math.min(startLeftW.current + delta, totalW - startMidW.current - MIN_CHAT - 8));
+        const newLeft = Math.max(MIN_W, Math.min(startLeftW.current + delta, totalW - MIN_W - MIN_CHAT - 8));
         setLeftW(newLeft);
       } else {
-        const newMid = Math.max(MIN_W, Math.min(startMidW.current + delta, totalW - startLeftW.current - MIN_CHAT - 8));
+        const newMid = Math.max(MIN_W, Math.min(startMidW.current + delta, totalW - leftW - MIN_CHAT - 8));
         setMidW(newMid);
       }
     };
-    const onMouseUp = () => { dragging.current = null; };
+    const onMouseUp = () => {
+      if (dragging.current === "left") localStorage.setItem("clawhq-dash-leftW", String(leftWRef.current));
+      if (dragging.current === "right") localStorage.setItem("clawhq-dash-midW", String(midWRef.current));
+      dragging.current = null;
+    };
     window.addEventListener("mousemove", onMouseMove);
     window.addEventListener("mouseup", onMouseUp);
     return () => { window.removeEventListener("mousemove", onMouseMove); window.removeEventListener("mouseup", onMouseUp); };
-  }, []);
+  }, [leftW, midW]);
 
-  const activeQueueItem = projects.flatMap(p => p.items).find(q => q.id === chatContext);
-  const currentMessages = chatMessages[chatContext] || chatMessages["general"];
-  const totalQueued = projects.reduce((n, p) => n + p.items.length, 0);
+  // Task management via shared hook (loadTasks, saveTasks, updateTask, deleteTask from useTasks)
 
-  const toggleProject = (name: string) => {
-    setOpenProjects(prev => {
+  async function startTask(id: string) {
+    const task = tasks.find(c => c.id === id);
+    if (!task) return;
+    const sessionKey = task.sessionKey || generateSessionKey(id);
+    await updateTask(id, { status: "in_progress", sessionKey });
+    const description = task.note || task.quote || "";
+    let kickoff = `Hey, let's discuss this task.\n\nTitle: ${task.summary}`;
+    if (description) kickoff += `\nDescription: ${description}`;
+    kickoff += `\n\nHow do you think we should get started?`;
+    setPendingKickoff(kickoff);
+    setActiveChatTaskId(id);
+    setExpandedId(null);
+  }
+
+  async function openTaskChat(id: string) {
+    const task = tasks.find(c => c.id === id);
+    if (task && !task.sessionKey) {
+      const sessionKey = `task-${id.replace("cap_", "")}`;
+      await updateTask(id, { sessionKey });
+    }
+    setActiveChatTaskId(id);
+  }
+
+  // ─── Load activity ───
+  useEffect(() => {
+    if (activityCache && Date.now() - activityCache.ts < ACTIVITY_CACHE_TTL) {
+      setActivityItems(activityCache.data);
+      setActivityLoading(false);
+      return;
+    }
+    loadActivity();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connStatus]);
+
+  async function loadActivity() {
+    if (connStatus !== "connected") return;
+    setActivityLoading(!activityCache);
+    try {
+      const rawSessions = await rpc.listSessions();
+      let sessionsList: Array<Record<string, unknown>> = [];
+      if (Array.isArray(rawSessions)) sessionsList = rawSessions;
+      else if (rawSessions && typeof rawSessions === "object") {
+        const obj = rawSessions as Record<string, unknown>;
+        if (Array.isArray(obj.sessions)) sessionsList = obj.sessions as Array<Record<string, unknown>>;
+      }
+      const promises = sessionsList.slice(0, 10).map(async (session) => {
+        try {
+          const key = safeStr(session.key || session.sessionKey || session.id);
+          if (!key) return [];
+          const label = safeStr(session.displayName || session.label || key);
+          const history = await rpc.getChatHistory(key, { limit: 200 });
+          return parseAndGroup(key, label, history);
+        } catch { return []; }
+      });
+      const results = await Promise.all(promises);
+      const all: ActivityItem[] = [];
+      for (const r of results) all.push(...r);
+      all.sort((a, b) => b.timestamp - a.timestamp);
+      activityCache = { data: all, ts: Date.now() };
+      setActivityItems(all);
+    } catch { /* */ }
+    setActivityLoading(false);
+  }
+
+  // ─── Derived data ───
+  const inboxItems = useMemo(() => {
+    let items = tasks.filter(c => c.status === "inbox" || c.status === "todo");
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      items = items.filter(c => c.summary.toLowerCase().includes(q) || (c.note || "").toLowerCase().includes(q) || (c.project || "").toLowerCase().includes(q));
+    }
+    return items;
+  }, [tasks, searchQuery]);
+
+  const activeItems = useMemo(() => tasks.filter(c => c.status === "in_progress"), [tasks]);
+
+  // ─── Fetch session metadata for active tasks ───
+  interface TaskSessionMeta {
+    lastMessage: string;
+    lastRole: "user" | "assistant";
+    lastAt: number;
+    messageCount: number;
+    toolNames: Set<string>;
+  }
+  const [taskMetas, setTaskMetas] = useState<Record<string, TaskSessionMeta>>({});
+
+  useEffect(() => {
+    if (connStatus !== "connected" || activeItems.length === 0) return;
+    const keysToFetch = activeItems.filter(t => t.sessionKey).map(t => ({ id: t.id, key: t.sessionKey! }));
+    if (keysToFetch.length === 0) return;
+
+    Promise.all(keysToFetch.map(async ({ id, key }) => {
+      try {
+        const result = await rpc.getChatHistory(key, { limit: 50 });
+        const data = result as { messages?: Array<Record<string, unknown>> };
+        if (!data?.messages?.length) return null;
+        const msgs = data.messages;
+        let lastMessage = "";
+        let lastRole: "user" | "assistant" = "user";
+        let lastAt = 0;
+        let msgCount = 0;
+        const toolSet = new Set<string>();
+
+        for (const msg of msgs) {
+          const role = safeStr(msg.role);
+          if (role !== "user" && role !== "assistant") continue;
+          const rawTs = msg.timestamp ?? msg.ts ?? msg.createdAt;
+          const ts = typeof rawTs === "number" ? (rawTs < 1e12 ? rawTs * 1000 : rawTs) : typeof rawTs === "string" ? new Date(rawTs).getTime() : 0;
+
+          if (role === "user") {
+            const text = extractText(msg.content);
+            if (text && !text.includes("HEARTBEAT")) {
+              msgCount++;
+              if (ts >= lastAt) { lastMessage = text; lastRole = "user"; lastAt = ts; }
+            }
+          } else if (role === "assistant") {
+            const content = msg.content;
+            if (Array.isArray(content)) {
+              for (const block of content as Record<string, unknown>[]) {
+                if (block?.type === "tool_use" || block?.type === "toolCall") {
+                  toolSet.add(safeStr(block.name));
+                }
+                if (block?.type === "text") {
+                  const t = safeStr(block.text).trim();
+                  if (t && t !== "HEARTBEAT_OK" && t !== "NO_REPLY") {
+                    msgCount++;
+                    if (ts >= lastAt) { lastMessage = t; lastRole = "assistant"; lastAt = ts; }
+                  }
+                }
+              }
+            } else {
+              const text = extractText(content);
+              if (text && text !== "HEARTBEAT_OK" && text !== "NO_REPLY") {
+                msgCount++;
+                if (ts >= lastAt) { lastMessage = text; lastRole = "assistant"; lastAt = ts; }
+              }
+            }
+          }
+        }
+        if (!lastMessage) return null;
+        return { id, meta: { lastMessage, lastRole, lastAt, messageCount: msgCount, toolNames: toolSet } as TaskSessionMeta };
+      } catch { return null; }
+    })).then(results => {
+      const map: Record<string, TaskSessionMeta> = {};
+      for (const r of results) { if (r) map[r.id] = r.meta; }
+      setTaskMetas(map);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeItems.length, connStatus]);
+
+  const inboxGrouped = useMemo(() => {
+    const groups: Record<string, Task[]> = {};
+    for (const c of inboxItems) {
+      const proj = c.project || "general";
+      if (!groups[proj]) groups[proj] = [];
+      groups[proj].push(c);
+    }
+    for (const items of Object.values(groups)) items.sort(priSort);
+    return Object.entries(groups).sort((a, b) => {
+      if (a[0] === "general") return -1;
+      if (b[0] === "general") return 1;
+      return a[0].localeCompare(b[0]);
+    });
+  }, [inboxItems]);
+
+  const allProjects = useMemo(() => {
+    const set = new Set(tasks.map(c => c.project || "general"));
+    set.add("general");
+    return Array.from(set).sort();
+  }, [tasks]);
+
+  const recentActivity = useMemo(() =>
+    activityItems.filter(i => i.icon !== Activity).slice(0, 30),
+  [activityItems]);
+
+  const counts = useMemo(() => ({
+    inbox: tasks.filter(c => c.status === "inbox" || c.status === "todo").length,
+    active: tasks.filter(c => c.status === "in_progress").length,
+    done: tasks.filter(c => c.status === "done").length,
+  }), [tasks]);
+
+  // ─── Add Task modal state ───
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newSummary, setNewSummary] = useState("");
+  const [newProject, setNewProject] = useState("general");
+  const [newPriority, setNewPriority] = useState<string | undefined>(undefined);
+  const [newNote, setNewNote] = useState("");
+
+  // ─── New Project modal state ───
+  const [showNewProject, setShowNewProject] = useState(false);
+  const {
+    projectMenuOpen, setProjectMenuOpen,
+    confirmDeleteProject, setConfirmDeleteProject,
+    editingProject, setEditingProject,
+    deleteProject, saveProjectEdit,
+  } = useProjects(tasks, saveTasks);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectColor, setNewProjectColor] = useState("bg-blue-400");
+  // getProjectColor comes from useSettings hook
+
+  async function addTask() {
+    if (!newSummary.trim()) return;
+    await addTaskToStore({
+      id: `cap_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      at: new Date().toISOString(),
+      type: "manual",
+      summary: newSummary.trim(),
+      project: newProject === "general" ? undefined : newProject,
+      status: "inbox",
+      priority: newPriority as Task["priority"],
+      note: newNote.trim() || undefined,
+    });
+    setNewSummary(""); setNewProject("general"); setNewPriority(undefined); setNewNote("");
+    setShowAddForm(false);
+  }
+
+  function toggleProject(proj: string) {
+    setCollapsedProjects(prev => {
       const next = new Set(prev);
-      if (next.has(name)) next.delete(name); else next.add(name);
+      if (next.has(proj)) next.delete(proj); else next.add(proj);
       return next;
     });
-  };
+  }
+
+  // ─── Loading state ───
+  if (connStatus !== "connected") {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <div className="h-8 w-8 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-white/30">{connStatus === "error" ? "Reconnecting…" : "Connecting…"}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const chatTask = activeChatTaskId ? tasks.find(c => c.id === activeChatTaskId) : null;
 
   return (
     <div className="h-screen flex flex-col">
-      {/* ═══ Top Bar ═══ */}
+      {/* ═══ Top Stats Bar ═══ */}
       <div className="flex-shrink-0 border-b border-white/5 bg-white/[0.01] px-6 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-1.5 rounded-lg bg-orange-500/10">
               <Sparkles className="h-5 w-5 text-orange-400" />
             </div>
-            <span className="text-lg font-bold text-white">ClawHQ</span>
+            <span className="text-lg font-bold text-white">Dashboard</span>
           </div>
           <div className="flex items-center gap-3 text-xs">
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-green-500/10 text-green-300">
-              <CheckCircle2 className="h-3.5 w-3.5" /> 12 done
+            {saving && (
+              <span className="flex items-center gap-1.5 text-[11px] text-white/30">
+                <Loader2 className="h-3 w-3 animate-spin" /> Saving…
+              </span>
+            )}
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 text-white/40">
+              <Inbox className="h-3.5 w-3.5" /> {counts.inbox} inbox
             </span>
             <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-500/10 text-orange-300">
-              <Loader2 className="h-3.5 w-3.5" /> 2 running
+              <Zap className="h-3.5 w-3.5" /> {counts.active} active
             </span>
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-300">
-              <DollarSign className="h-3.5 w-3.5" /> $2.45
-            </span>
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 text-white/40">
-              <Lightbulb className="h-3.5 w-3.5" /> {totalQueued} queued
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-green-500/10 text-green-300">
+              <CheckCircle2 className="h-3.5 w-3.5" /> {counts.done} done
             </span>
           </div>
         </div>
@@ -251,327 +719,945 @@ export default function Dashboard() {
       {/* ═══ 3-Column Layout ═══ */}
       <div ref={containerRef} className="flex-1 flex min-h-0">
 
-        {/* ════ LEFT: Planning Queue ════ */}
-        <div style={{ width: leftW, minWidth: MIN_W }} className="flex flex-col bg-white/[0.005] flex-shrink-0">
+        {/* ════ LEFT: Planning Queue (Inbox) ════ */}
+        <div style={{ width: leftW, minWidth: MIN_W }} className="flex flex-col flex-shrink-0">
           {/* Header */}
           <div className="flex-shrink-0 px-4 py-3 border-b border-white/5">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                <Lightbulb className="h-4 w-4 text-orange-400" />
-                Planning Queue
-                <span className="text-xs px-1.5 py-0.5 rounded bg-white/10 text-white/40 font-normal">{totalQueued}</span>
+                <Inbox className="h-4 w-4 text-orange-400" />
+                Inbox
+                {counts.inbox > 0 && (
+                  <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-300 font-normal">{counts.inbox}</span>
+                )}
               </h2>
-              <button className="p-1 rounded hover:bg-white/5 text-white/40 hover:text-white transition-colors">
-                <Plus className="h-4 w-4" />
-              </button>
+              <CreateMenu
+                onNewTask={() => setShowAddForm(true)}
+                onNewProject={() => setShowNewProject(true)}
+              />
+            </div>
+            {/* Search */}
+            <div className="relative mt-2">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/20" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search…"
+                className="w-full bg-white/[0.03] border border-white/[0.06] rounded-lg pl-8 pr-7 py-1.5 text-[12px] text-white placeholder-white/20 focus:border-orange-500/30 focus:outline-none transition-colors"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/25 hover:text-white/50">
+                  <X className="h-3 w-3" />
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Project groups — collapsible */}
-          <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
-            {projects.map((project) => {
-              const isOpen = openProjects.has(project.name);
-              const discussing = project.items.filter(i => i.status === "discussing").length;
-              const ready = project.items.filter(i => i.status === "ready").length;
-              const running = project.items.filter(i => i.status === "running").length;
-
-              return (
-                <div key={project.name}>
-                  {/* Project header — always visible */}
-                  <button
-                    onClick={() => toggleProject(project.name)}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-all ${
-                      isOpen ? "bg-white/[0.03]" : "hover:bg-white/[0.02]"
-                    }`}
-                  >
-                    <ChevronRight className={`h-3 w-3 text-white/20 transition-transform ${isOpen ? "rotate-90" : ""}`} />
-                    <span className={`h-2.5 w-2.5 rounded-full ${dotColor(project.color)}`} />
-                    <span className="text-sm font-semibold text-white/70 flex-1 text-left">{project.name}</span>
-                    
-                    {/* Status summary chips */}
-                    <div className="flex items-center gap-1">
-                      {running > 0 && (
-                        <span className="text-[11px] px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-300">{running} running</span>
-                      )}
-                      {ready > 0 && (
-                        <span className="text-[11px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-300">{ready} ready</span>
-                      )}
-                      {discussing > 0 && (
-                        <span className="text-[11px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-300">{discussing} 💬</span>
-                      )}
-                      {!isOpen && (
-                        <span className="text-[11px] text-white/20 ml-1">{project.items.length}</span>
-                      )}
-                    </div>
-                  </button>
-
-                  {/* Expanded items */}
-                  {isOpen && (
-                    <div className="ml-3 mr-1 mt-0.5 mb-2 space-y-px">
-                      {project.items.map((item) => {
-                        const sc = statusCfg(item.status);
-                        const isSelected = expandedItem === item.id;
-                        const isChatTarget = chatContext === item.id;
-
-                        return (
-                          <div key={item.id}>
-                            <button
-                              onClick={() => setExpandedItem(isSelected ? null : item.id)}
-                              className={`w-full text-left px-3 py-2 rounded-lg transition-all ${
-                                isChatTarget
-                                  ? "bg-orange-500/[0.06]"
-                                  : isSelected
-                                    ? "bg-white/[0.03]"
-                                    : "hover:bg-white/[0.02]"
-                              }`}
-                            >
-                              {/* Title + status */}
-                              <div className="flex items-center gap-2">
-                                <span className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${
-                                  item.status === "running" ? "bg-orange-400 animate-pulse" :
-                                  item.status === "ready" ? "bg-green-400" :
-                                  item.status === "discussing" ? "bg-blue-400" :
-                                  dotColorMuted(project.color)
-                                }`} />
-                                <span className="text-sm text-white/75 flex-1 truncate">{item.title}</span>
-                                <span className={`text-[11px] ${sc.text}`}>{sc.emoji}</span>
-                              </div>
-
-                              {/* Inline meta — only when NOT expanded */}
-                              {!isSelected && (
-                                <div className="flex items-center gap-2 mt-1 ml-3.5">
-                                  <span className="text-[11px] text-white/20">{item.capturedAt}</span>
-                                  {item.messages > 0 && (
-                                    <span className="text-[11px] text-white/20 flex items-center gap-0.5">
-                                      <MessageSquare className="h-2.5 w-2.5" /> {item.messages}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
+          {/* Task list */}
+          <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3">
+            {capturesLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-5 w-5 text-orange-400 animate-spin" />
+              </div>
+            ) : inboxItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <Inbox className="h-8 w-8 text-white/10 mb-3" />
+                <p className="text-[13px] text-white/30">Inbox empty</p>
+                <p className="text-[11px] text-white/15 mt-1">Tasks appear as your agent tasks them</p>
+              </div>
+            ) : (
+              inboxGrouped.map(([proj, items], gi) => (
+                <div key={proj} className={gi > 0 ? "mt-4" : ""}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <button onClick={() => toggleProject(proj)} className="flex items-center gap-2 group">
+                      {collapsedProjects.has(proj) ? <ChevronRight className="h-3.5 w-3.5 text-white/25" /> : <ChevronDown className="h-3.5 w-3.5 text-white/25" />}
+                      <div className={cn("h-2.5 w-2.5 rounded-full", getProjectColor(proj))} />
+                      <span className="text-[14px] leading-none font-semibold text-white/70 group-hover:text-white/90 transition-colors">{projLabel(proj)}</span>
+                      <span className="text-[14px] leading-none text-white/25 ml-1 font-normal">{items.length}</span>
+                    </button>
+                    <div className="flex-1" />
+                    {proj !== "general" && (
+                      <div className="relative">
+                        <button onClick={() => setProjectMenuOpen(projectMenuOpen === proj ? null : proj)}
+                          className="p-1 rounded-md text-white/20 hover:text-white/50 hover:bg-white/5 transition-all">
+                          <MoreHorizontal className="h-3.5 w-3.5" />
+                        </button>
+                        {projectMenuOpen === proj && (<>
+                          <div className="fixed inset-0 z-40" onClick={() => setProjectMenuOpen(null)} />
+                          <div className="absolute right-0 top-7 z-50 bg-[#1a1614] border border-white/10 rounded-lg shadow-xl py-1 min-w-[130px]">
+                            <button onClick={() => { setEditingProject({ key: proj, name: projLabel(proj), color: getProjectColor(proj) }); setProjectMenuOpen(null); }}
+                              className="flex items-center gap-2 w-full px-3 py-1.5 text-[12px] text-white/50 hover:text-white/80 hover:bg-white/5 transition-colors">
+                              <Pencil className="h-3 w-3" /> Edit
                             </button>
-
-                            {/* Expanded detail — clean inline, no box */}
-                            {isSelected && (
-                              <div className="px-3 pb-2 ml-3.5 space-y-2">
-                                {item.note && (
-                                  <p className="text-xs text-white/40 leading-relaxed">{item.note}</p>
-                                )}
-                                <div className="flex items-center gap-2 text-[11px] text-white/25">
-                                  <span className="flex items-center gap-1">
-                                    <Hash className="h-2.5 w-2.5" />
-                                    {captureLabel(item.capturedFrom)}
-                                  </span>
-                                  <span>•</span>
-                                  <span>{item.capturedAt}</span>
-                                  {item.messages > 0 && (
-                                    <>
-                                      <span>•</span>
-                                      <span className="flex items-center gap-0.5">
-                                        <MessageSquare className="h-2.5 w-2.5" /> {item.messages} msgs
-                                      </span>
-                                    </>
-                                  )}
-                                </div>
-                                {/* Actions — inline buttons, no borders */}
-                                <div className="flex items-center gap-2 pt-0.5">
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); setChatContext(item.id); }}
-                                    className="text-xs text-blue-300/80 hover:text-blue-300 flex items-center gap-1 transition-colors"
-                                  >
-                                    <MessageSquare className="h-3 w-3" /> Discuss
-                                  </button>
-                                  {item.status === "ready" && (
-                                    <button className="text-xs text-green-300/80 hover:text-green-300 flex items-center gap-1 transition-colors">
-                                      <Play className="h-3 w-3" /> Start
-                                    </button>
-                                  )}
-                                  <button className="text-xs text-white/25 hover:text-white/50 flex items-center gap-1 transition-colors">
-                                    <Calendar className="h-3 w-3" /> Schedule
-                                  </button>
-                                </div>
-                              </div>
-                            )}
+                            <button onClick={() => { setConfirmDeleteProject(proj); setProjectMenuOpen(null); }}
+                              className="flex items-center gap-2 w-full px-3 py-1.5 text-[12px] text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                              <Trash2 className="h-3 w-3" /> Delete
+                            </button>
                           </div>
-                        );
-                      })}
+                        </>)}
+                      </div>
+                    )}
+                  </div>
+                  {!collapsedProjects.has(proj) && (
+                    <div className="ml-2 space-y-1">
+                      {items.map(task => (
+                        <DashboardTaskRow
+                          key={task.id}
+                          task={task}
+                          expanded={expandedId === task.id}
+                          onToggle={() => setExpandedId(expandedId === task.id ? null : task.id)}
+                          onStart={() => startTask(task.id)}
+                          onStatusChange={(status) => updateTask(task.id, { status })}
+                          onPriorityChange={(pri) => updateTask(task.id, { priority: pri })}
+                          onEdit={() => setEditingTask(task)}
+                        />
+                      ))}
                     </div>
                   )}
                 </div>
-              );
-            })}
-          </div>
-
-          {/* Quick capture */}
-          <div className="flex-shrink-0 p-3 border-t border-white/5">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Capture an idea..."
-                className="w-full bg-white/[0.03] border border-white/8 rounded-lg px-3 py-2 text-sm text-white placeholder-white/25 focus:outline-none focus:border-orange-500/30 transition-all"
-              />
-              <Plus className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/20" />
-            </div>
+              ))
+            )}
           </div>
         </div>
 
-        {/* ═══ DRAG HANDLE 1 ═══ */}
-        <div
-          onMouseDown={onMouseDown("left")}
-          className="w-1 bg-white/10 hover:bg-orange-500/30 cursor-col-resize transition-colors flex-shrink-0"
-        />
+        {/* ═══ DRAG HANDLE ═══ */}
+        <div onMouseDown={onMouseDownLeft} className="w-1 bg-white/[0.06] hover:bg-orange-500/30 cursor-col-resize transition-colors flex-shrink-0" />
 
         {/* ════ MIDDLE: Active + Activity ════ */}
-        <div style={{ width: midW, minWidth: MIN_W }} className="flex flex-col bg-white/[0.005] flex-shrink-0">
-          {/* Active tasks */}
+        <div className="flex flex-col min-w-0 flex-shrink-0" style={{ width: midW, minWidth: MIN_W }}>
+          {/* Active tasks header */}
           <div className="flex-shrink-0 px-4 py-3 border-b border-white/5">
             <h2 className="text-sm font-semibold text-white flex items-center gap-2">
               <Zap className="h-4 w-4 text-orange-400" />
               Active
-              <span className="text-xs px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-300 font-normal">{activeTasks.length} running</span>
+              {counts.active > 0 && (
+                <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-300 font-normal">{counts.active}</span>
+              )}
             </h2>
           </div>
 
-          <div className="flex-shrink-0 p-3 space-y-1.5 border-b border-white/5">
-            {activeTasks.map((task) => (
-              <div key={task.id} className="p-2.5 rounded-lg bg-orange-500/[0.04] border border-orange-500/10">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-medium text-white/80">{task.title}</span>
-                  <span className="text-[11px] text-white/30">{task.startedAt}</span>
-                </div>
-                <div className="flex items-center gap-2 mb-2">
-                  <SrcBadge source={task.source} />
-                  <span className="text-[11px] text-white/25">{task.project}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1 rounded-full bg-white/10">
-                    <div className="h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-400" style={{ width: `${task.progress}%` }} />
-                  </div>
-                  <span className="text-[11px] text-white/30">{task.progress}%</span>
-                </div>
+          {/* Active tasks list */}
+          <div className="flex-shrink-0 border-b border-white/5">
+            {activeItems.length === 0 ? (
+              <div className="px-4 py-6 text-center">
+                <p className="text-[12px] text-white/20">No active tasks</p>
               </div>
-            ))}
-          </div>
-
-          {/* Activity feed */}
-          <div className="flex-1 flex flex-col min-h-0">
-            <div className="flex-shrink-0 px-4 py-3 border-b border-white/5">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-white/50" /> Activity
-                </h2>
-                <div className="flex items-center gap-1">
-                  <button className="text-[11px] px-2 py-0.5 rounded-full bg-white/5 text-white/40">All</button>
-                  <button className="text-[11px] px-2 py-0.5 rounded-full text-white/25 hover:bg-orange-500/10 hover:text-orange-300 transition-all">Cron</button>
-                  <button className="text-[11px] px-2 py-0.5 rounded-full text-white/25 hover:bg-blue-500/10 hover:text-blue-300 transition-all">Chat</button>
-                  <button className="text-[11px] px-2 py-0.5 rounded-full text-white/25 hover:bg-purple-500/10 hover:text-purple-300 transition-all">Queue</button>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-3 space-y-0.5">
-              {recentActivity.map((a) => (
-                <div key={a.id}>
-                  <button
-                    onClick={() => setExpandedActivity(expandedActivity === a.id ? null : a.id)}
-                    className={`w-full text-left flex items-center gap-2.5 px-2.5 py-2 rounded-lg transition-all ${
-                      expandedActivity === a.id ? "bg-white/[0.04]" : "hover:bg-white/[0.02]"
-                    }`}
-                  >
-                    <div className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${actDot(a.type)}`} />
-                    <span className="text-xs text-white/70 font-medium truncate">{a.action}</span>
-                    <span className="text-[10px] text-white/20 flex-shrink-0 ml-auto whitespace-nowrap">
-                      {a.time}{a.cost ? ` · $${a.cost.toFixed(2)}` : ""}
-                    </span>
-                  </button>
-                  {expandedActivity === a.id && (
-                    <div className="ml-6 mb-1 px-2.5 space-y-1.5">
-                      {a.description && (
-                        <p className="text-[11px] text-white/35 leading-relaxed">{a.description}</p>
+            ) : (
+              <div className="p-3 space-y-2">
+                {activeItems.map(task => {
+                  const isSelected = activeChatTaskId === task.id;
+                  const meta = taskMetas[task.id];
+                  return (
+                    <button
+                      key={task.id}
+                      onClick={() => openTaskChat(task.id)}
+                      className={cn(
+                        "w-full text-left rounded-xl p-3.5 transition-all",
+                        isSelected
+                          ? "bg-orange-500/[0.1] border border-orange-500/30 shadow-[0_0_12px_rgba(249,115,22,0.08)]"
+                          : "bg-white/[0.025] border border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.035]"
                       )}
-                      <div className="flex items-center gap-3 text-[10px] text-white/20">
-                        <SrcBadge source={a.source} />
-                        {a.model && <span>{a.model}</span>}
-                        {a.duration && <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {a.duration}</span>}
-                        {a.cost !== undefined && a.cost > 0 && <span>${a.cost.toFixed(2)}</span>}
-                        {a.tokens && <span>{((a.tokens.in + a.tokens.out) / 1000).toFixed(1)}K tokens</span>}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={cn(
+                          "mt-0.5 h-8 w-8 rounded-lg flex items-center justify-center shrink-0",
+                          isSelected ? "bg-orange-500/20" : "bg-white/[0.04]"
+                        )}>
+                          <StatusIcon status="in_progress" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className={cn("text-[14px] font-semibold truncate flex-1", isSelected ? "text-orange-200" : "text-white/85")}>{task.summary}</span>
+                            <PriorityIcon priority={task.priority} className="h-3.5 w-3.5 shrink-0" />
+                          </div>
+                          {/* Last message preview */}
+                          {meta?.lastMessage ? (
+                            <p className="text-[12px] text-white/30 mt-1.5 line-clamp-1 leading-relaxed">
+                              <span className={cn("font-medium", meta.lastRole === "user" ? "text-orange-300/50" : "text-white/40")}>
+                                {meta.lastRole === "user" ? "You" : agentName}:
+                              </span>{" "}
+                              {meta.lastMessage.slice(0, 120)}
+                            </p>
+                          ) : (task.note || task.quote) ? (
+                            <p className="text-[12px] text-white/30 mt-1.5 line-clamp-1 leading-relaxed">{task.note || task.quote}</p>
+                          ) : null}
+                          <div className="flex items-center gap-3 mt-2">
+                            <div className="flex items-center gap-1.5">
+                              <div className={cn("h-2 w-2 rounded-full", getProjectColor(task.project))} />
+                              <span className="text-[11px] text-white/25">{projLabel(task.project)}</span>
+                            </div>
+                            {meta && (
+                              <span className="flex items-center gap-1 text-[11px] text-white/20">
+                                <MessageSquare className="h-3 w-3" /> {meta.messageCount}
+                              </span>
+                            )}
+                            <span className="text-[11px] text-white/15 ml-auto">
+                              {meta?.lastAt ? timeAgo(new Date(meta.lastAt).toISOString()) : timeAgo(task.at)}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <div className="flex-shrink-0 p-3 border-t border-white/5">
-              <button className="w-full text-xs text-orange-400 hover:text-orange-300 flex items-center justify-center gap-1">
-                View all activity <ArrowRight className="h-3 w-3" />
-              </button>
-            </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
+
+          {/* Spacer — activity feed removed, keeping middle column for active tasks only */}
+          <div className="flex-1" />
         </div>
 
         {/* ═══ DRAG HANDLE 2 ═══ */}
-        <div
-          onMouseDown={onMouseDown("right")}
-          className="w-1 bg-white/10 hover:bg-orange-500/30 cursor-col-resize transition-colors flex-shrink-0"
-        />
+        <div onMouseDown={onMouseDownRight} className="w-1 bg-white/[0.06] hover:bg-orange-500/30 cursor-col-resize transition-colors flex-shrink-0" />
 
-        {/* ════ RIGHT: Chat ════ */}
-        <div className="flex-1 flex flex-col min-w-0" style={{ minWidth: MIN_CHAT }}>
-          <div className="flex-shrink-0 px-4 py-3 border-b border-white/5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-orange-400" />
-                <span className="text-sm font-semibold text-white">Chat</span>
-              </div>
-              <button onClick={() => setChatContext("general")} className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/8 transition-all text-xs">
-                <span className="text-white/60">
-                  {activeQueueItem ? `📎 ${activeQueueItem.title.slice(0, 25)}${activeQueueItem.title.length > 25 ? "…" : ""}` : "General"}
-                </span>
-                <ChevronDown className="h-3.5 w-3.5 text-white/30" />
+        {/* ════ RIGHT: Chat (always visible) ════ */}
+        <div className="flex-1 min-w-0" style={{ minWidth: MIN_CHAT }}>
+          {chatTask && chatTask.sessionKey ? (
+            <TaskChat
+              task={{
+                id: chatTask.id,
+                summary: chatTask.summary,
+                sessionKey: chatTask.sessionKey!,
+                note: chatTask.note,
+                quote: chatTask.quote,
+                project: chatTask.project,
+                priority: chatTask.priority,
+                status: chatTask.status,
+                at: chatTask.at,
+              }}
+              allProjects={allProjects}
+              onBack={() => setActiveChatTaskId(null)}
+              onStatusChange={(status) => {
+                updateTask(chatTask.id, { status: status as Task["status"] });
+                if (status !== "in_progress") setActiveChatTaskId(null);
+              }}
+              onPriorityChange={(pri) => updateTask(chatTask.id, { priority: pri as Task["priority"] })}
+              onProjectChange={(proj) => updateTask(chatTask.id, { project: proj })}
+              onDelete={() => { deleteTask(chatTask.id); setActiveChatTaskId(null); }}
+              initialMessage={pendingKickoff ?? undefined}
+              onInitialMessageSent={() => setPendingKickoff(null)}
+            />
+          ) : (
+            <MainChat />
+          )}
+        </div>
+      </div>
+
+      {/* ═══ Add Task Modal ═══ */}
+      {showAddForm && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowAddForm(false)} />
+          <div className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-[#1a1614] shadow-2xl shadow-black/40">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+              <h2 className="text-[15px] font-semibold text-white/90">Add Task</h2>
+              <button onClick={() => setShowAddForm(false)} className="text-white/30 hover:text-white/60 transition-colors p-1 rounded-lg hover:bg-white/5">
+                <X className="h-4 w-4" />
               </button>
             </div>
-            {activeQueueItem && (
-              <div className="flex items-center gap-2 mt-1.5">
-                <span className={`text-[11px] px-1.5 py-0.5 rounded ${statusCfg(activeQueueItem.status).bg} ${statusCfg(activeQueueItem.status).text}`}>
-                  {statusCfg(activeQueueItem.status).emoji} {statusCfg(activeQueueItem.status).label}
-                </span>
+            <div className="px-5 py-4 space-y-4">
+              <div>
+                <label className="block text-[12px] text-white/40 uppercase tracking-wider mb-1.5">Summary</label>
+                <input
+                  type="text"
+                  value={newSummary}
+                  onChange={e => setNewSummary(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && newSummary.trim()) addTask(); }}
+                  placeholder="What needs to be done?"
+                  className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-[13px] text-white placeholder-white/20 focus:border-orange-500/30 focus:outline-none transition-colors"
+                  autoFocus
+                />
               </div>
-            )}
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {activeQueueItem && (
-              <div className="mb-2 px-3 py-2 rounded-lg bg-white/[0.02]">
-                <p className="text-xs text-white/20 uppercase tracking-wider mb-0.5">Discussing</p>
-                <p className="text-base text-white/60 font-medium">{activeQueueItem.title}</p>
+              <div>
+                <label className="block text-[12px] text-white/40 uppercase tracking-wider mb-1.5">Project</label>
+                <select
+                  value={newProject}
+                  onChange={e => setNewProject(e.target.value)}
+                  className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 pr-10 py-2 text-[13px] text-white focus:border-orange-500/30 focus:outline-none transition-colors appearance-none bg-[length:16px] bg-[right_12px_center] bg-no-repeat bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22rgba(255%2C255%2C255%2C0.3)%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')]"
+                >
+                  {allProjects.map(p => (
+                    <option key={p} value={p}>{projLabel(p)}</option>
+                  ))}
+                </select>
               </div>
-            )}
-            {currentMessages.map((msg, i) => (
-              <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[85%] ${
-                  msg.role === "user" ? "bg-orange-500/15 rounded-2xl rounded-tr-sm" : "bg-white/[0.03] rounded-2xl rounded-tl-sm"
-                } px-3.5 py-2.5`}>
-                  <p className="text-sm text-white/85 whitespace-pre-wrap leading-relaxed">{msg.content}</p>
-                  <p className="text-[11px] text-white/20 mt-1">{msg.time}</p>
+              <div>
+                <label className="block text-[12px] text-white/40 uppercase tracking-wider mb-1.5">Priority</label>
+                <div className="flex gap-1">
+                  {priOptions.map(p => (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => setNewPriority(p.key === "none" ? undefined : p.key)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[12px] border transition-all ${
+                        (newPriority || "none") === p.key
+                          ? "border-orange-500/40 bg-orange-500/10 text-white/90"
+                          : "border-white/[0.06] bg-white/[0.02] text-white/40 hover:text-white/60 hover:bg-white/[0.04]"
+                      }`}
+                    >
+                      <PriorityIcon priority={p.key === "none" ? undefined : p.key} className="h-3.5 w-3.5" />
+                      {p.label}
+                    </button>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
-
-          <div className="flex-shrink-0 p-3 border-t border-white/5">
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                placeholder={activeQueueItem ? `Discuss ${activeQueueItem.title.slice(0, 30)}...` : "Ask anything... ideas auto-captured ✨"}
-                className="flex-1 bg-white/[0.03] border border-white/8 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-white/25 focus:outline-none focus:border-orange-500/30 focus:ring-1 focus:ring-orange-500/15 transition-all"
-              />
-              <button className="p-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-all">
-                <Send className="h-4 w-4" />
+              <div>
+                <label className="block text-[12px] text-white/40 uppercase tracking-wider mb-1.5">Note <span className="text-white/20">(optional)</span></label>
+                <textarea
+                  value={newNote}
+                  onChange={e => setNewNote(e.target.value)}
+                  placeholder="Additional context..."
+                  rows={2}
+                  className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-[13px] text-white placeholder-white/20 focus:border-orange-500/30 focus:outline-none transition-colors resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/[0.06]">
+              <button onClick={() => setShowAddForm(false)} className="px-4 py-2 rounded-lg text-[13px] text-white/40 hover:text-white/60 hover:bg-white/5 transition-all">
+                Cancel
+              </button>
+              <button onClick={addTask} disabled={!newSummary.trim()} className="px-4 py-2 rounded-lg bg-orange-500 text-white text-[13px] font-medium hover:bg-orange-600 disabled:opacity-30 transition-all">
+                Add Task
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {/* ═══ New Project Modal ═══ */}
+      {showNewProject && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowNewProject(false)} />
+          <div className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-[#1a1614] shadow-2xl shadow-black/40">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+              <h2 className="text-[15px] font-semibold text-white/90">New Project</h2>
+              <button onClick={() => setShowNewProject(false)} className="text-white/30 hover:text-white/60 transition-colors p-1 rounded-lg hover:bg-white/5">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              <div>
+                <label className="block text-[12px] text-white/40 uppercase tracking-wider mb-1.5">Name</label>
+                <input
+                  type="text"
+                  value={newProjectName}
+                  onChange={e => setNewProjectName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter" && newProjectName.trim()) {
+                      const key = newProjectName.trim().toLowerCase();
+                      const updated = { ...settings.projectColors, [key]: newProjectColor };
+                      saveSettings({ projectColors: updated });
+                      setShowNewProject(false); setNewProjectName(""); setNewProjectColor("bg-blue-400");
+                    }
+                  }}
+                  placeholder="Project name"
+                  className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-[13px] text-white placeholder-white/20 focus:border-orange-500/30 focus:outline-none transition-colors"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-[12px] text-white/40 uppercase tracking-wider mb-1.5">Color</label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {["bg-blue-400", "bg-purple-400", "bg-red-400", "bg-orange-400", "bg-green-400", "bg-yellow-400", "bg-pink-400", "bg-cyan-400", "bg-indigo-400"].map(c => (
+                    <button key={c} onClick={() => setNewProjectColor(c)}
+                      className={cn("h-6 w-6 rounded-full transition-all", c,
+                        newProjectColor === c ? "ring-2 ring-white/50 ring-offset-2 ring-offset-[#1a1614]" : "hover:scale-110"
+                      )} />
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/[0.06]">
+              <button onClick={() => setShowNewProject(false)} className="px-4 py-2 rounded-lg text-[13px] text-white/40 hover:text-white/60 hover:bg-white/5 transition-all">
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (!newProjectName.trim()) return;
+                  const key = newProjectName.trim().toLowerCase();
+                  const updated = { ...settings.projectColors, [key]: newProjectColor };
+                  saveSettings({ projectColors: updated });
+                  setShowNewProject(false); setNewProjectName(""); setNewProjectColor("bg-blue-400");
+                }}
+                disabled={!newProjectName.trim()}
+                className="px-4 py-2 rounded-lg bg-orange-500 text-white text-[13px] font-medium hover:bg-orange-600 disabled:opacity-30 transition-all"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Task Modal */}
+      {editingTask && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setEditingTask(null)} />
+          <div className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-[#1a1614] shadow-2xl shadow-black/40">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+              <h2 className="text-[15px] font-semibold text-white/90">Edit Task</h2>
+              <button onClick={() => setEditingTask(null)} className="text-white/30 hover:text-white/60 transition-colors p-1 rounded-lg hover:bg-white/5">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <EditTaskForm
+              task={editingTask}
+              allProjects={allProjects}
+              onSave={(patch) => { updateTask(editingTask.id, patch); setEditingTask(null); }}
+              onClose={() => setEditingTask(null)}
+              onDelete={() => { deleteTask(editingTask.id); setEditingTask(null); }}
+              onCreateProject={() => setShowNewProject(true)}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Delete Project Confirmation */}
+      {confirmDeleteProject && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setConfirmDeleteProject(null)} />
+          <div className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-[#1a1614] shadow-2xl shadow-black/40">
+            <div className="px-5 py-4 border-b border-white/[0.06]">
+              <h2 className="text-[15px] font-semibold text-white/90">Delete Project</h2>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-[13px] text-white/60">
+                Delete <span className="font-semibold text-white/80">{projLabel(confirmDeleteProject)}</span>? All tasks will be moved to General.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/[0.06]">
+              <button onClick={() => setConfirmDeleteProject(null)}
+                className="px-4 py-2 rounded-lg text-[13px] text-white/40 hover:text-white/60 hover:bg-white/5 transition-all">
+                Cancel
+              </button>
+              <button onClick={() => deleteProject(confirmDeleteProject)}
+                className="px-4 py-2 rounded-lg bg-red-500 text-white text-[13px] font-medium hover:bg-red-600 transition-all">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Project Modal */}
+      {editingProject && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setEditingProject(null)} />
+          <div className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-[#1a1614] shadow-2xl shadow-black/40">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+              <h2 className="text-[15px] font-semibold text-white/90">Edit Project</h2>
+              <button onClick={() => setEditingProject(null)} className="text-white/30 hover:text-white/60 transition-colors p-1 rounded-lg hover:bg-white/5">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              <div>
+                <label className="block text-[12px] text-white/40 uppercase tracking-wider mb-1.5">Name</label>
+                <input type="text" value={editingProject.name}
+                  onChange={e => setEditingProject({ ...editingProject, name: e.target.value })}
+                  onKeyDown={e => { if (e.key === "Enter") saveProjectEdit(editingProject.key, editingProject.name, editingProject.color); }}
+                  className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-[13px] text-white placeholder-white/20 focus:border-orange-500/30 focus:outline-none transition-colors"
+                  autoFocus />
+              </div>
+              <div>
+                <label className="block text-[12px] text-white/40 uppercase tracking-wider mb-1.5">Color</label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {["bg-purple-400", "bg-blue-400", "bg-cyan-400", "bg-teal-400", "bg-green-400", "bg-amber-400", "bg-orange-400", "bg-red-400", "bg-pink-400", "bg-indigo-400", "bg-violet-400", "bg-fuchsia-400", "bg-sky-400"].map(c => (
+                    <button key={c} onClick={() => setEditingProject({ ...editingProject, color: c })}
+                      className={cn("h-6 w-6 rounded-full transition-all", c,
+                        editingProject.color === c ? "ring-2 ring-white/50 ring-offset-2 ring-offset-[#1a1614]" : "hover:scale-110"
+                      )} />
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/[0.06]">
+              <button onClick={() => setEditingProject(null)}
+                className="px-4 py-2 rounded-lg text-[13px] text-white/40 hover:text-white/60 hover:bg-white/5 transition-all">Cancel</button>
+              <button onClick={() => saveProjectEdit(editingProject.key, editingProject.name, editingProject.color)}
+                disabled={!editingProject.name.trim()}
+                className="px-4 py-2 rounded-lg bg-orange-500 text-white text-[13px] font-medium hover:bg-orange-600 disabled:opacity-30 transition-all">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Edit Task Form (shared between dashboard and planning) ───
+
+function EditTaskForm({ task, allProjects, onSave, onClose, onDelete, onCreateProject }: {
+  task: Task;
+  allProjects: string[];
+  onSave: (patch: Partial<Task>) => void;
+  onClose: () => void;
+  onDelete: () => void;
+  onCreateProject: () => void;
+}) {
+  const [title, setTitle] = useState(task.summary);
+  const [description, setDescription] = useState(task.note || task.quote || "");
+  const [project, setProject] = useState(task.project || "general");
+  const [priority, setPriority] = useState(task.priority || "none");
+
+  return (
+    <>
+      <div className="px-5 py-4 space-y-4">
+        <div>
+          <label className="block text-[12px] text-white/40 uppercase tracking-wider mb-1.5">Title</label>
+          <input type="text" value={title} onChange={e => setTitle(e.target.value)}
+            className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-[13px] text-white placeholder-white/20 focus:border-orange-500/30 focus:outline-none transition-colors"
+            autoFocus />
+        </div>
+        <div>
+          <label className="block text-[12px] text-white/40 uppercase tracking-wider mb-1.5">Description</label>
+          <textarea value={description} onChange={e => setDescription(e.target.value)}
+            placeholder="Add details..." rows={4}
+            className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-[13px] text-white placeholder-white/20 focus:border-orange-500/30 focus:outline-none transition-colors resize-none" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[12px] text-white/40 uppercase tracking-wider mb-1.5">Project</label>
+            <select value={project} onChange={e => e.target.value === "__new__" ? onCreateProject() : setProject(e.target.value)}
+              className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 pr-10 py-2 text-[13px] text-white focus:border-orange-500/30 focus:outline-none transition-colors appearance-none bg-[length:16px] bg-[right_12px_center] bg-no-repeat bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22rgba(255%2C255%2C255%2C0.3)%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')]">
+              {allProjects.map(p => (
+                <option key={p} value={p}>{projLabel(p)}</option>
+              ))}
+              <option value="__new__">+ New project</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[12px] text-white/40 uppercase tracking-wider mb-1.5">Priority</label>
+            <select value={priority} onChange={e => setPriority(e.target.value)}
+              className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 pr-10 py-2 text-[13px] text-white focus:border-orange-500/30 focus:outline-none transition-colors appearance-none bg-[length:16px] bg-[right_12px_center] bg-no-repeat bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22rgba(255%2C255%2C255%2C0.3)%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')]">
+              {priOptions.map(p => (
+                <option key={p.key} value={p.key}>{p.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
+      <div className="flex items-center justify-between px-5 py-3 border-t border-white/[0.06]">
+        <button onClick={onDelete}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-all">
+          <Trash2 className="h-3.5 w-3.5" /> Delete
+        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={onClose}
+            className="px-4 py-2 rounded-lg text-[13px] text-white/40 hover:text-white/60 hover:bg-white/5 transition-all">
+            Cancel
+          </button>
+          <button
+            onClick={() => onSave({
+              summary: title,
+              note: description,
+              quote: undefined,
+              project,
+              priority: priority === "none" ? undefined : priority as Task["priority"],
+            })}
+            className="px-4 py-2 rounded-lg bg-orange-500 text-white text-[13px] font-medium hover:bg-orange-600 transition-all">
+            Save
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── Main Session Chat ───
+
+import { type ParsedMessage, type MessageGroup, extractText as chatExtractText, parseMessages, groupMessages, shortenPath } from "@/lib/chat-parser";
+import { MarkdownContent } from "@/components/ui/markdown-content";
+import { ToolCardView, ToolSummaryCard, LiveToolCard } from "@/components/ui/tool-cards";
+import { ChatGroup } from "@/components/task-chat";
+import { useAgentIdentity } from "@/lib/use-agent-identity";
+
+let mainSending = false;
+let mainActiveRunId: string | null = null;
+const MAIN_SESSION_KEY = "main";
+
+function playNotificationSound() {
+  try {
+    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.setValueAtTime(1047, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.25);
+  } catch { /* */ }
+}
+
+// MainChatGroup removed — using shared ChatGroup from task-chat.tsx
+
+function MainChat() {
+  const { rpc } = useGateway();
+  const { name: agentName, emoji: agentEmoji } = useAgentIdentity();
+  const [messages, setMessages] = useState<ParsedMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [sending, _setSending] = useState(() => mainSending);
+  const sendingRef = useRef(mainSending);
+  const setSending = useCallback((v: boolean) => {
+    mainSending = v;
+    sendingRef.current = v;
+    _setSending(v);
+  }, []);
+  const [streamContent, setStreamContent] = useState<string | null>(null);
+  const streamRef = useRef<string | null>(null);
+  const [liveTools, setLiveTools] = useState<Array<{ name: string; detail?: string }>>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const activeRunId = useRef<string | null>(mainActiveRunId);
+  const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevMessageCount = useRef(0);
+
+  useEffect(() => { streamRef.current = streamContent; }, [streamContent]);
+
+  // Load history
+  const loadHistory = useCallback(async () => {
+    try {
+      const result = await rpc.getChatHistory(MAIN_SESSION_KEY, { limit: 500 });
+      const data = result as { messages?: Array<Record<string, unknown>> };
+      if (!data?.messages) return;
+      const parsed = parseMessages(data.messages as Parameters<typeof parseMessages>[0]);
+      if (sendingRef.current) {
+        setMessages(prev => {
+          const lastMsg = prev[prev.length - 1];
+          if (lastMsg?.role === "user") {
+            const serverHasIt = parsed.length > 0 && parsed[parsed.length - 1]?.role === "user" && parsed[parsed.length - 1].text === lastMsg.text;
+            if (!serverHasIt) return [...parsed, lastMsg];
+          }
+          return parsed;
+        });
+      } else {
+        setMessages(parsed);
+      }
+    } catch { /* */ }
+  }, [rpc]);
+
+  // Polling fallback
+  function pollUntilDone(attempt = 0) {
+    if (attempt > 120) { setSending(false); return; }
+    pollTimer.current = setTimeout(async () => {
+      try {
+        const result = await rpc.getChatHistory(MAIN_SESSION_KEY, { limit: 500 });
+        const data = result as { messages?: Array<Record<string, unknown>> };
+        if (data?.messages) {
+          const parsed = parseMessages(data.messages as Parameters<typeof parseMessages>[0]);
+          setMessages(parsed);
+          if (attempt >= 3 && parsed.length > 0) {
+            const last = parsed[parsed.length - 1];
+            if (last.role === "assistant" && last.text.trim()) {
+              setSending(false); setStreamContent(null); setLiveTools([]);
+              playNotificationSound();
+              return;
+            }
+          }
+        }
+      } catch { /* */ }
+      if (sendingRef.current) pollUntilDone(attempt + 1);
+    }, 2000);
+  }
+
+  // On mount: load history + detect incomplete turn
+  useEffect(() => {
+    setStreamContent(null);
+    setLiveTools([]);
+    activeRunId.current = mainActiveRunId;
+
+    const wasSending = mainSending;
+
+    function detectIncompleteTurn(msgs: ParsedMessage[]): boolean {
+      if (msgs.length === 0) return false;
+      const last = msgs[msgs.length - 1];
+      if (last.role === "user") return true;
+      if (last.role === "assistant" && !last.text.trim()) return true;
+      return false;
+    }
+
+    async function loadAndDetect() {
+      try {
+        const result = await rpc.getChatHistory(MAIN_SESSION_KEY, { limit: 500 });
+        const data = result as { messages?: Array<Record<string, unknown>> };
+        if (!data?.messages) return;
+        const parsed = parseMessages(data.messages as Parameters<typeof parseMessages>[0]);
+        setMessages(parsed);
+        if (wasSending || detectIncompleteTurn(parsed)) {
+          setSending(true);
+          pollUntilDone();
+        } else {
+          setSending(false);
+        }
+      } catch { /* */ }
+    }
+
+    loadAndDetect();
+    return () => { if (pollTimer.current) { clearTimeout(pollTimer.current); pollTimer.current = null; } };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Background poll — catch messages that arrive outside active send (e.g. cron, external triggers)
+  useEffect(() => {
+    const iv = setInterval(() => {
+      if (!sendingRef.current) loadHistory();
+    }, 10000);
+    return () => clearInterval(iv);
+  }, [loadHistory]);
+
+  // Chat events
+  useEffect(() => {
+    const unsub = rpc.onEvent("chat", (data: unknown) => {
+      const evt = data as { sessionKey?: string; runId?: string; state?: string; message?: unknown; errorMessage?: string };
+      const matches = evt.sessionKey === MAIN_SESSION_KEY || (evt.runId && evt.runId === activeRunId.current);
+      if (!matches) return;
+      if (evt.state === "delta") {
+        if (!sendingRef.current) setSending(true);
+        const text = chatExtractText(evt.message);
+        if (text) { const cur = streamRef.current || ""; if (text.length >= cur.length) setStreamContent(text); }
+      }
+      if (evt.state === "final" || evt.state === "aborted") {
+        if (pollTimer.current) { clearTimeout(pollTimer.current); pollTimer.current = null; }
+        setStreamContent(null); setLiveTools([]); setSending(false); loadHistory();
+        if (evt.state === "final") playNotificationSound();
+      }
+      if (evt.state === "error") {
+        setStreamContent(null); setLiveTools([]); setSending(false);
+        setMessages(prev => [...prev, { role: "assistant", text: `⚠️ ${evt.errorMessage || "Error"}`, toolCards: [], at: new Date().toISOString() }]);
+      }
+    });
+    return unsub;
+  }, [rpc, loadHistory, setSending]);
+
+  // Agent events (live tools)
+  useEffect(() => {
+    const unsub = rpc.onEvent("agent", (data: unknown) => {
+      const evt = data as { sessionKey?: string; runId?: string; stream?: string; name?: string; toolName?: string; phase?: string; args?: unknown };
+      const matches = evt.sessionKey === MAIN_SESSION_KEY || (evt.runId && evt.runId === activeRunId.current);
+      if (!matches || evt.stream !== "tool") return;
+      const name = evt.name || evt.toolName || "tool";
+      const phase = evt.phase || "start";
+      if (phase === "start") {
+        if (!sendingRef.current) setSending(true);
+        let detail = "";
+        if (evt.args && typeof evt.args === "object") {
+          const a = evt.args as Record<string, unknown>;
+          detail = (a.command || a.path || a.file_path || a.query || a.url || a.action || "") as string;
+        }
+        setLiveTools(prev => [...prev, { name, detail: detail ? shortenPath(detail) : undefined }]);
+      }
+      if (phase === "result" || phase === "error") setLiveTools(prev => prev.slice(0, -1));
+    });
+    return unsub;
+  }, [rpc, setSending]);
+
+  // Auto-scroll
+  useEffect(() => {
+    const isNew = messages.length > prevMessageCount.current || streamContent || liveTools.length > 0;
+    prevMessageCount.current = messages.length;
+    if (isNew) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, streamContent, liveTools]);
+
+  // Auto-resize textarea
+  const autoResize = useCallback(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 200) + "px";
+  }, []);
+  useEffect(() => { autoResize(); }, [input, autoResize]);
+
+  async function sendMessage() {
+    const text = input.trim();
+    if (!text || sending) return;
+    setMessages(prev => [...prev, { role: "user", text, toolCards: [], at: new Date().toISOString() }]);
+    setInput(""); setSending(true); setStreamContent(null); setLiveTools([]);
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+    try {
+      const r = await rpc.chatSend(MAIN_SESSION_KEY, text);
+      if (r?.runId) { activeRunId.current = r.runId; mainActiveRunId = r.runId; }
+      pollUntilDone();
+    } catch (err) {
+      setMessages(prev => [...prev, { role: "assistant", text: `⚠️ ${err instanceof Error ? err.message : "Error"}`, toolCards: [], at: new Date().toISOString() }]);
+      setSending(false);
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  }
+
+  async function handleStop() {
+    try { await rpc.chatAbort(MAIN_SESSION_KEY); } catch { /* */ }
+    setSending(false); setStreamContent(null); setLiveTools([]);
+  }
+
+  const groups = groupMessages(messages);
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex-shrink-0 border-b border-white/5 px-5 py-3">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-sm">{agentEmoji}</div>
+            <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-green-500 border-2 border-[#161210]" />
+          </div>
+          <div>
+            <h2 className="text-[15px] font-semibold text-white/90">Chat</h2>
+            <p className="text-[10px] text-green-400">Main Session</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
+        {groups.length === 0 && !streamContent && !sending && (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="h-14 w-14 rounded-full bg-gradient-to-br from-orange-500/20 to-amber-600/20 flex items-center justify-center text-2xl mb-4">{agentEmoji}</div>
+            <p className="text-[15px] text-white/50 mb-1">Hey! What&apos;s up?</p>
+            <p className="text-[12px] text-white/20 max-w-sm">Type a message to chat with your agent directly.</p>
+          </div>
+        )}
+
+        {groups.map((group, i) => <ChatGroup key={i} group={group} />)}
+
+        {liveTools.length > 0 && (
+          <div className="ml-10 space-y-1.5 max-w-[85%]">
+            {liveTools.map((tool, i) => <LiveToolCard key={i} name={tool.name} detail={tool.detail} />)}
+          </div>
+        )}
+
+        {sending && streamContent && (
+          <div className="flex gap-3">
+            <div className="h-7 w-7 rounded-full bg-white/[0.06] flex items-center justify-center shrink-0 mt-auto">
+              <span className="text-[11px] text-white/40 font-medium">A</span>
+            </div>
+            <div className="max-w-[85%]">
+              <div className="rounded-2xl px-4 py-2.5 bg-white/[0.04] border border-white/[0.06]">
+                <MarkdownContent text={streamContent} className="text-white/75" />
+                <span className="inline-block w-1.5 h-4 bg-orange-400 animate-pulse ml-0.5 align-middle" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {sending && !streamContent && (
+          <div className="flex gap-3">
+            <div className="h-7 w-7 rounded-full bg-white/[0.06] flex items-center justify-center shrink-0 mt-auto">
+              <span className="text-[11px] text-white/40 font-medium">A</span>
+            </div>
+            <div className="w-fit">
+              <div className="rounded-2xl px-3.5 py-2 bg-white/[0.03] border border-white/[0.06]">
+                <div className="flex items-center gap-2 text-white/30">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-orange-400/60" />
+                  <span className="text-[13px]">{liveTools.length > 0 ? "Working…" : "Thinking…"}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input */}
+      <div className="flex-shrink-0 border-t border-white/5 px-5 py-3">
+        <div className="flex items-end gap-2">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={`Message ${agentName}…`}
+            rows={1}
+            className="flex-1 bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-2.5 text-[14px] text-white placeholder-white/20 focus:border-orange-500/30 focus:outline-none transition-colors resize-none overflow-y-auto"
+            style={{ minHeight: "42px" }}
+          />
+          {sending ? (
+            <button onClick={handleStop} className="p-2.5 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all shrink-0" title="Stop">
+              <X className="h-4 w-4" />
+            </button>
+          ) : (
+            <button onClick={sendMessage} disabled={!input.trim()} className="p-2.5 rounded-xl bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-30 transition-all shrink-0" title="Send">
+              <Send className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Compact Task Row for Dashboard ───
+
+function DashboardTaskRow({ task, expanded, onToggle, onStart, onStatusChange, onPriorityChange, onEdit }: {
+  task: Task;
+  expanded: boolean;
+  onToggle: () => void;
+  onStart: () => void;
+  onStatusChange: (status: Task["status"]) => void;
+  onPriorityChange: (priority: Task["priority"]) => void;
+  onEdit: () => void;
+}) {
+  const [priOpen, setPriOpen] = useState(false);
+  const description = task.note || task.quote || "";
+
+  return (
+    <div className={cn(
+      "rounded-lg border transition-all",
+      expanded ? "bg-white/[0.03] border-orange-500/20" : "bg-white/[0.015] border-white/5 hover:border-white/10"
+    )}>
+      <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-white/[0.01] transition-all" onClick={onToggle}>
+        <div className="relative shrink-0" onClick={e => { e.stopPropagation(); setPriOpen(!priOpen); }}>
+          <PriorityIcon priority={task.priority} className="h-4 w-4 cursor-pointer hover:scale-110 transition-transform" />
+          {priOpen && (<>
+            <div className="fixed inset-0 z-40" onClick={e => { e.stopPropagation(); setPriOpen(false); }} />
+            <div className="absolute top-6 left-0 z-50 bg-[#1a1614] border border-white/10 rounded-lg shadow-xl py-1 min-w-[120px]">
+              {priOptions.map(p => (
+                <button
+                  key={p.key}
+                  onClick={e => { e.stopPropagation(); onPriorityChange(p.key === "none" ? undefined as unknown as Task["priority"] : p.key as Task["priority"]); setPriOpen(false); }}
+                  className={cn("flex items-center gap-2 w-full px-3 py-1.5 text-[12px] hover:bg-white/5 transition-colors",
+                    (task.priority || "none") === p.key ? "text-white/80" : "text-white/40"
+                  )}
+                >
+                  <PriorityIcon priority={p.key === "none" ? undefined : p.key} className="h-3.5 w-3.5" />
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </>)}
+        </div>
+        <StatusIcon status={task.status === "todo" ? "inbox" : task.status} className="shrink-0" />
+        <span className="text-[13px] text-white/75 font-medium truncate flex-1">{task.summary}</span>
+        <span className="text-[11px] text-white/20 shrink-0">{timeAgo(task.at)}</span>
+      </div>
+
+      {expanded && (
+        <div className="px-3 pb-2.5 space-y-2 border-t border-white/5 pt-2">
+          {description && <p className="text-[12px] text-white/35 leading-relaxed line-clamp-3">{description}</p>}
+          <div className="flex items-center gap-2">
+            <button onClick={e => { e.stopPropagation(); onStart(); }}
+              className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-orange-500/10 text-orange-300 hover:bg-orange-500/20 transition-all">
+              <Play className="h-3 w-3" /> Start
+            </button>
+            <button onClick={e => { e.stopPropagation(); onEdit(); }}
+              className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-white/5 text-white/30 hover:bg-white/10 transition-all">
+              <Pencil className="h-3 w-3" /> Edit
+            </button>
+            <button onClick={e => { e.stopPropagation(); onStatusChange("done"); }}
+              className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-white/5 text-white/30 hover:bg-white/10 transition-all">
+              <Check className="h-3 w-3" /> Done
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

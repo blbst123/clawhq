@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Clock,
   Zap,
@@ -14,6 +14,7 @@ import {
   Filter,
 } from "lucide-react";
 import { useGateway } from "@/lib/gateway-context";
+import { useCachedRpc, invalidateCache } from "@/lib/use-cached-rpc";
 
 interface CronJob {
   id: string;
@@ -254,19 +255,10 @@ function truncateMessage(msg?: string, len = 120): string {
 
 /* ── Project inference ── */
 
-const PROJECT_RULES: { match: RegExp; project: string; color: string }[] = [
-  { match: /lit[\s.-]?trade|lit[\s.-]?analysis|hyperliquid|trading|revenue/i, project: "Lit.trade", color: "purple" },
-  { match: /chartr|legal\s*ai/i, project: "Chartr", color: "green" },
-  { match: /content|xiaohongshu|douyin|tiktok|youtube|instagram|video|creator/i, project: "Content", color: "red" },
-  { match: /clawhq|claw[\s.-]?hq|dashboard/i, project: "ClawHQ", color: "orange" },
-  { match: /blueprint|promptkit/i, project: "Blueprints", color: "blue" },
-];
-
 function inferProject(job: CronJob): { project: string; color: string } {
-  const text = [job.name, job.payload.message, job.payload.text].filter(Boolean).join(" ");
-  for (const rule of PROJECT_RULES) {
-    if (rule.match.test(text)) return { project: rule.project, color: rule.color };
-  }
+  // Use job name as project label if it looks like one, otherwise "General"
+  const name = job.name || "";
+  if (name) return { project: name, color: "blue" };
   return { project: "General", color: "gray" };
 }
 
@@ -361,7 +353,7 @@ function ExpandedDetails({ job, onEdit, onRun, onToggleEnabled, onDelete }: { jo
             onClick={(e) => { e.stopPropagation(); setShowManageMenu(!showManageMenu); setConfirmDelete(false); }}
             className="px-3 py-1.5 rounded-lg bg-white/5 text-white/40 text-[12px] hover:bg-white/10 transition-all"
           >
-            {job.enabled ? "Disable" : "Enable"} / Delete
+            {job.enabled ? "Pause" : "Enable"} / Delete
           </button>
           {showManageMenu && (
             <div className="absolute left-0 bottom-full mb-1 w-56 rounded-xl bg-[#1a1614] border border-white/10 shadow-2xl shadow-black/40 z-50 overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -502,11 +494,8 @@ function EditModal({ job, onClose, onSave, availableModels }: { job: CronJob; on
   async function handleSave() {
     setSaving(true);
     try {
-      const patch: Record<string, unknown> = {};
-      if (name !== (job.name || "")) patch.name = name;
-      if (enabled !== job.enabled) patch.enabled = enabled;
-      if (sessionTarget !== (job.sessionTarget || "isolated")) patch.sessionTarget = sessionTarget;
-
+      const isNewJob = job.id === "";
+      
       // Build schedule
       const newSchedule: Record<string, unknown> = { kind: scheduleKind };
       if (scheduleKind === "cron") {
@@ -517,23 +506,47 @@ function EditModal({ job, onClose, onSave, availableModels }: { job: CronJob; on
       } else if (scheduleKind === "at") {
         newSchedule.at = atDatetime;
       }
-      const origSched = job.schedule;
-      const origExpr = origSched.expr || "";
-      const newExpr = scheduleKind === "cron" ? (useAdvancedCron ? cronExpr : timeFieldsToCron(hour, minute, days)) : "";
-      if (scheduleKind !== origSched.kind || newExpr !== origExpr || cronTz !== (origSched.tz || "") || everyMins !== (origSched.everyMs ? String(Math.round(origSched.everyMs / 60000)) : "") || atDatetime !== (origSched.at || "")) {
-        patch.schedule = newSchedule;
-      }
 
       // Build payload
       const newPayload: Record<string, unknown> = { kind: payloadKind };
-      if (payloadKind === "agentTurn") { newPayload.message = message; if (model) newPayload.model = model; }
-      else { newPayload.text = message; }
-      if (payloadKind !== job.payload.kind || message !== (job.payload.message || job.payload.text || "") || model !== (job.payload.model || "")) {
-        patch.payload = newPayload;
+      if (payloadKind === "agentTurn") { 
+        newPayload.message = message; 
+        if (model) newPayload.model = model; 
+      } else { 
+        newPayload.text = message; 
       }
 
-      if (Object.keys(patch).length > 0) {
-        await onSave(job.id, patch);
+      if (isNewJob) {
+        // Create new job - send complete job object
+        const newJob: Record<string, unknown> = {
+          name: name || undefined,
+          enabled,
+          sessionTarget,
+          schedule: newSchedule,
+          payload: newPayload,
+        };
+        await onSave("", newJob);
+      } else {
+        // Update existing job - send only changed fields
+        const patch: Record<string, unknown> = {};
+        if (name !== (job.name || "")) patch.name = name;
+        if (enabled !== job.enabled) patch.enabled = enabled;
+        if (sessionTarget !== (job.sessionTarget || "isolated")) patch.sessionTarget = sessionTarget;
+
+        const origSched = job.schedule;
+        const origExpr = origSched.expr || "";
+        const newExpr = scheduleKind === "cron" ? (useAdvancedCron ? cronExpr : timeFieldsToCron(hour, minute, days)) : "";
+        if (scheduleKind !== origSched.kind || newExpr !== origExpr || cronTz !== (origSched.tz || "") || everyMins !== (origSched.everyMs ? String(Math.round(origSched.everyMs / 60000)) : "") || atDatetime !== (origSched.at || "")) {
+          patch.schedule = newSchedule;
+        }
+
+        if (payloadKind !== job.payload.kind || message !== (job.payload.message || job.payload.text || "") || model !== (job.payload.model || "")) {
+          patch.payload = newPayload;
+        }
+
+        if (Object.keys(patch).length > 0) {
+          await onSave(job.id, patch);
+        }
       }
       onClose();
     } catch {
@@ -545,7 +558,7 @@ function EditModal({ job, onClose, onSave, availableModels }: { job: CronJob; on
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-[520px] mx-4 bg-[#1a1614] rounded-xl border border-white/10 shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="px-6 pt-5 pb-4 border-b border-white/5">
-          <h2 className="text-[15px] font-semibold text-white">Edit Job</h2>
+          <h2 className="text-[15px] font-semibold text-white">{job.id === "" ? "Create Job" : "Edit Job"}</h2>
         </div>
         <div className="px-6 py-4 space-y-5 max-h-[70vh] overflow-y-auto">
           {/* Name */}
@@ -720,7 +733,7 @@ function EditModal({ job, onClose, onSave, availableModels }: { job: CronJob; on
         <div className="px-6 py-4 border-t border-white/5 flex items-center justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-[13px] text-white/40 hover:bg-white/5 transition-all">Cancel</button>
           <button onClick={handleSave} disabled={saving} className="px-4 py-2 rounded-lg text-[13px] bg-orange-500 text-white font-medium hover:bg-orange-600 transition-all disabled:opacity-50">
-            {saving ? "Saving…" : "Save Changes"}
+            {saving ? (job.id === "" ? "Creating…" : "Saving…") : (job.id === "" ? "Create Job" : "Save Changes")}
           </button>
         </div>
       </div>
@@ -799,8 +812,6 @@ function RecurringRow({ job, isExpanded, onToggle, onEdit, onRun, onToggleEnable
 
 export default function CronPage() {
   const { rpc, status: connStatus } = useGateway();
-  const [jobs, setJobs] = useState<CronJob[]>([]);
-  const [loading, setLoading] = useState(true);
   const [expandedJob, setExpandedJob] = useState<string | null>(null);
   const [hideDisabled, setHideDisabled] = useState(true);
   const [projectFilter, setProjectFilter] = useState<string | null>(null);
@@ -821,22 +832,27 @@ export default function CronPage() {
     }).catch(() => {});
   }, [connStatus, rpc]);
 
-  const refreshJobs = () => {
-    rpc.listCronJobs({ includeDisabled: true })
-      .then((data) => {
-        const d = data as unknown as { jobs: CronJob[] };
-        const jobList = d.jobs || [];
-        for (const job of jobList) {
-          if (!job.lastRun?.startedAtMs && job.state?.lastRunAtMs) {
-            job.lastRun = { startedAtMs: job.state.lastRunAtMs, ok: job.state.lastStatus === "ok", error: job.state.lastError };
-            if (job.state.lastDurationMs && job.state.lastRunAtMs) job.lastRun.finishedAtMs = job.state.lastRunAtMs + job.state.lastDurationMs;
-          }
-          if (!job.nextRun && job.state?.nextRunAtMs) job.nextRun = new Date(job.state.nextRunAtMs).toISOString();
-        }
-        setJobs(jobList);
-      })
-      .catch(() => {});
+  const fetchCronJobs = async (): Promise<CronJob[]> => {
+    const data = await rpc.listCronJobs({ includeDisabled: true });
+    const d = data as unknown as { jobs: CronJob[] };
+    const jobList = d.jobs || [];
+    for (const job of jobList) {
+      if (!job.lastRun?.startedAtMs && job.state?.lastRunAtMs) {
+        job.lastRun = { startedAtMs: job.state.lastRunAtMs, ok: job.state.lastStatus === "ok", error: job.state.lastError };
+        if (job.state.lastDurationMs && job.state.lastRunAtMs) job.lastRun.finishedAtMs = job.state.lastRunAtMs + job.state.lastDurationMs;
+      }
+      if (!job.nextRun && job.state?.nextRunAtMs) job.nextRun = new Date(job.state.nextRunAtMs).toISOString();
+    }
+    return jobList;
   };
+
+  const { data: jobsData, loading, refresh: refreshCache, stale } = useCachedRpc<CronJob[]>("cron-jobs", fetchCronJobs, 30_000);
+  const jobs = jobsData ?? [];
+
+  const refreshJobs = useCallback(() => {
+    invalidateCache("cron-jobs");
+    refreshCache();
+  }, [refreshCache]);
 
   const handleRun = async (job: CronJob) => {
     try { await rpc.runCronJob(job.id); } catch {} finally { refreshJobs(); }
@@ -848,39 +864,15 @@ export default function CronPage() {
     try { await rpc.removeCronJob(job.id); } catch {} finally { refreshJobs(); }
   };
   const handleSaveEdit = async (jobId: string, patch: Record<string, unknown>) => {
-    await rpc.updateCronJob(jobId, patch);
+    if (jobId === "") {
+      // Create new job
+      await rpc.request("cron.add", { job: patch });
+    } else {
+      // Update existing job
+      await rpc.updateCronJob(jobId, patch);
+    }
     refreshJobs();
   };
-
-  useEffect(() => {
-    if (connStatus !== "connected") return;
-    setLoading(true);
-    rpc.listCronJobs({ includeDisabled: true })
-      .then((data) => {
-        const d = data as unknown as { jobs: CronJob[] };
-        const jobList = d.jobs || [];
-        // Populate lastRun from state if not already set
-        for (const job of jobList) {
-          if (!job.lastRun?.startedAtMs && job.state?.lastRunAtMs) {
-            job.lastRun = {
-              startedAtMs: job.state.lastRunAtMs,
-              ok: job.state.lastStatus === "ok",
-              error: job.state.lastError,
-            };
-            if (job.state.lastDurationMs && job.state.lastRunAtMs) {
-              job.lastRun.finishedAtMs = job.state.lastRunAtMs + job.state.lastDurationMs;
-            }
-          }
-          // Also use state.nextRunAtMs if nextRun not set
-          if (!job.nextRun && job.state?.nextRunAtMs) {
-            job.nextRun = new Date(job.state.nextRunAtMs).toISOString();
-          }
-        }
-        setJobs(jobList);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [connStatus, rpc]);
 
   const activeJobs = jobs.filter(j => j.enabled).length;
   const disabledJobs = jobs.filter(j => !j.enabled).length;
@@ -930,9 +922,10 @@ export default function CronPage() {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="text-center space-y-3">
-          <WifiOff className="h-8 w-8 text-white/20 mx-auto" />
-          <p className="text-sm text-white/40">Connect to gateway to view cron jobs</p>
-          <a href="/settings" className="text-xs text-orange-400 hover:text-orange-300">Go to Settings →</a>
+          <div className="h-8 w-8 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-white/30">
+            {connStatus === "error" ? "Reconnecting…" : "Connecting…"}
+          </p>
         </div>
       </div>
     );
@@ -1020,13 +1013,29 @@ export default function CronPage() {
                 <span>Hide paused</span>
               </label>
             )}
+            <button
+              onClick={() => {
+                const newJobTemplate: CronJob = {
+                  id: "",
+                  name: "",
+                  enabled: true,
+                  schedule: { kind: "cron", expr: "30 8 * * *", tz: "America/Los_Angeles" },
+                  sessionTarget: "isolated",
+                  payload: { kind: "agentTurn", message: "" },
+                };
+                setEditingJob(newJobTemplate);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500 text-white text-[13px] font-medium hover:bg-orange-600 transition-all ml-auto"
+            >
+              + New Job
+            </button>
           </div>
         </div>
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
-        {loading ? (
+        {loading && !jobsData ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 className="h-6 w-6 text-orange-400 animate-spin" />
           </div>

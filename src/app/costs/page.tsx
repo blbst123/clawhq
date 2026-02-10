@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import {
   DollarSign,
   TrendingUp,
@@ -11,6 +10,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { useGateway } from "@/lib/gateway-context";
+import { useCachedRpc } from "@/lib/use-cached-rpc";
 
 interface DailyCost {
   date: string;
@@ -54,49 +54,52 @@ function formatDate(d: string): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+interface CostsData {
+  daily: DailyCost[];
+  modelCosts: ModelCost[];
+}
+
 export default function CostsPage() {
   const { rpc, status: connStatus } = useGateway();
-  const [daily, setDaily] = useState<DailyCost[]>([]);
-  const [modelCosts, setModelCosts] = useState<ModelCost[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (connStatus !== "connected") return;
-    setLoading(true);
+  const fetchCosts = async (): Promise<CostsData> => {
+    const [costData, usageData] = await Promise.all([
+      rpc.getUsageCost().catch(() => null),
+      rpc.getSessionUsage({ limit: 500 }).catch(() => null),
+    ]);
 
-    const fetchCosts = rpc.getUsageCost().then((data) => {
-      const d = data as unknown as { daily: DailyCost[] };
-      setDaily(d.daily || []);
-    }).catch(() => {});
+    const daily = (costData as unknown as { daily: DailyCost[] })?.daily || [];
 
-    const fetchModels = rpc.getSessionUsage({ limit: 500 }).then((data) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const d = data as any;
-      const byModel: Array<{ model?: string; provider?: string; count?: number; totals?: { totalCost?: number; inputCost?: number; outputCost?: number; cacheReadCost?: number; cacheWriteCost?: number; totalTokens?: number } }> = d?.aggregates?.byModel || [];
-      const result: ModelCost[] = byModel.map((m) => ({
-        model: m.model || "unknown",
-        provider: m.provider,
-        count: m.count || 0,
-        totalCost: m.totals?.totalCost || 0,
-        inputCost: m.totals?.inputCost || 0,
-        outputCost: m.totals?.outputCost || 0,
-        cacheReadCost: m.totals?.cacheReadCost || 0,
-        cacheWriteCost: m.totals?.cacheWriteCost || 0,
-        totalTokens: m.totals?.totalTokens || 0,
-      }));
-      setModelCosts(result.sort((a, b) => b.totalCost - a.totalCost));
-    }).catch(() => {});
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const d = usageData as any;
+    const byModel: Array<{ model?: string; provider?: string; count?: number; totals?: { totalCost?: number; inputCost?: number; outputCost?: number; cacheReadCost?: number; cacheWriteCost?: number; totalTokens?: number } }> = d?.aggregates?.byModel || [];
+    const modelCosts: ModelCost[] = byModel.map((m) => ({
+      model: m.model || "unknown",
+      provider: m.provider,
+      count: m.count || 0,
+      totalCost: m.totals?.totalCost || 0,
+      inputCost: m.totals?.inputCost || 0,
+      outputCost: m.totals?.outputCost || 0,
+      cacheReadCost: m.totals?.cacheReadCost || 0,
+      cacheWriteCost: m.totals?.cacheWriteCost || 0,
+      totalTokens: m.totals?.totalTokens || 0,
+    })).sort((a, b) => b.totalCost - a.totalCost);
 
-    Promise.all([fetchCosts, fetchModels]).finally(() => setLoading(false));
-  }, [connStatus, rpc]);
+    return { daily, modelCosts };
+  };
+
+  const { data, loading, stale } = useCachedRpc<CostsData>("costs", fetchCosts, 60_000);
+  const daily = data?.daily ?? [];
+  const modelCosts = data?.modelCosts ?? [];
 
   if (connStatus !== "connected") {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="text-center space-y-3">
-          <WifiOff className="h-8 w-8 text-white/20 mx-auto" />
-          <p className="text-sm text-white/40">Connect to gateway to view costs</p>
-          <a href="/settings" className="text-xs text-orange-400 hover:text-orange-300">Go to Settings →</a>
+          <div className="h-8 w-8 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-white/30">
+            {connStatus === "error" ? "Reconnecting…" : "Connecting…"}
+          </p>
         </div>
       </div>
     );
@@ -128,14 +131,14 @@ export default function CostsPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-white">Costs</h1>
-              <p className="text-sm text-white/40">{daily.length} days of usage</p>
+              <p className="text-sm text-white/40">{daily.length} days of usage{stale && <Loader2 className="inline h-3 w-3 ml-2 animate-spin text-orange-400/50" />}</p>
             </div>
           </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        {loading ? (
+        {loading && !data ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-6 w-6 text-orange-400 animate-spin" />
           </div>
