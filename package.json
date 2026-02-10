@@ -1,12 +1,26 @@
 {
   "name": "clawhq",
   "version": "0.1.0",
-  "private": true,
+  "description": "Owner-centric agent dashboard for OpenClaw — activity feed, planning queue, cost tracking, cron management, skills browser.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/blbst123/clawhq.git"
+  },
+  "openclaw": {
+    "extensions": ["./index.ts"]
+  },
+  "files": [
+    "index.ts",
+    "openclaw.plugin.json",
+    "ui/**"
+  ],
   "scripts": {
     "dev": "next dev",
-    "build": "next build && mkdir -p out/api/clawhq && ln -sf /home/lolo/.openclaw/workspace/data/clawhq/tasks.json out/api/clawhq/tasks.json && rm -rf ~/.openclaw/workspace/.openclaw/extensions/clawhq/ui && cp -r out ~/.openclaw/workspace/.openclaw/extensions/clawhq/ui && ln -sf /home/lolo/.openclaw/workspace/data/clawhq/tasks.json ~/.openclaw/workspace/.openclaw/extensions/clawhq/ui/api/clawhq/tasks.json",
+    "build": "next build && rm -rf ui && cp -r out ui",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

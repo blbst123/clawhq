@@ -1,0 +1,15 @@
+{
+  "id": "clawhq",
+  "name": "ClawHQ",
+  "description": "Owner-centric agent dashboard — activity feed, planning queue, cost tracking, cron management.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "basePath": {
+        "type": "string",
+        "description": "URL base path for the dashboard (default: /clawhq)"
+      }
+    }
+  }
+}
