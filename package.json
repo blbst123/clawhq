@@ -1,6 +1,6 @@
 {
   "name": "clawhq",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Owner-centric agent dashboard for OpenClaw — activity feed, planning queue, cost tracking, cron management, skills browser.",
   "license": "MIT",
   "repository": {
@@ -8,7 +8,9 @@
     "url": "https://github.com/blbst123/clawhq.git"
   },
   "openclaw": {
-    "extensions": ["./index.ts"]
+    "extensions": [
+      "./index.ts"
+    ]
   },
   "files": [
     "index.ts",
