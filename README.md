@@ -13,14 +13,14 @@ No separate server. No extra dependencies. Install the plugin and your gateway s
 
 ## Features
 
-- **📊 Cost Tracking** — Daily spend, per-model breakdown, usage trends
-- **📋 Planning Queue** — Task inbox with priorities, projects, and agent chat per task
-- **⏰ Cron Manager** — View scheduled jobs, run history, enable/disable
+- **💬 Task Chat** — Every task gets its own chat thread with your agent. Delegate work, track progress, and keep context organized per task
+- **📋 Planning Queue** — Task inbox with priorities, projects, and status tracking
 - **📡 Activity Feed** — Real-time session activity across all your agents
+- **📊 Cost Tracking** — Daily spend, per-model breakdown, usage trends
+- **⏰ Cron Manager** — View scheduled jobs, run history, enable/disable
 - **🔧 Skills Browser** — See installed skills, eligibility status, and documentation
 - **🔑 Access Overview** — Connected channels, API keys, nodes at a glance
 - **📁 Files** — Browse and view your agent's workspace files
-- **💬 Chat** — Talk to your agent directly from the dashboard
 
 ## Installation
 
