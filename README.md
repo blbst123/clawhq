@@ -11,6 +11,14 @@ ClawHQ is an OpenClaw plugin that adds a web dashboard to your gateway. It's bui
 
 No separate server. No extra dependencies. Install the plugin and your gateway serves the dashboard.
 
+## Screenshots
+
+![Dashboard & Task Chat](docs/images/dashboard-planning.png)
+*Planning queue with task conversations — delegate work to your agent per-task*
+
+![Cron Schedule](docs/images/cron-schedule.png)
+*Daily schedule overview with status indicators and model assignments*
+
 ## Features
 
 - **💬 Task Chat** — Every task gets its own chat thread with your agent. Delegate work, track progress, and keep context organized per task
