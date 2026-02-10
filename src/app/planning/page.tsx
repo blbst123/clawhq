@@ -30,6 +30,7 @@ import { useProjects } from "@/lib/use-projects";
 import { useTasks } from "@/lib/use-tasks";
 import { timeAgo, priSort, generateSessionKey } from "@/lib/task-utils";
 import type { Task } from "@/lib/types";
+import { CreateMenu } from "@/components/ui/create-menu";
 
 // ─── Types ───
 
@@ -61,14 +62,20 @@ export default function TasksPage() {
   const [newProject, setNewProject] = useState("general");
   const [newNote, setNewNote] = useState("");
   const [newPriority, setNewPriority] = useState<Task["priority"]>(undefined);
-  const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set());
+  const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const saved = localStorage.getItem("clawhq-collapsed-projects-planning");
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
   const [showNewProject, setShowNewProject] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const {
     projectMenuOpen, setProjectMenuOpen,
     confirmDeleteProject, setConfirmDeleteProject,
     editingProject, setEditingProject,
-    deleteProject, saveProjectEdit,
+    createProject, deleteProject, saveProjectEdit,
   } = useProjects(tasks, saveTasks);
   const [sortBy, setSortBy] = useState<"project" | "priority" | "date">("project");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -182,6 +189,11 @@ export default function TasksPage() {
         .map(k => [`__pri_${k}`, priGroups[k]] as [string, Task[]]);
     }
     const groups: Record<string, Task[]> = {};
+    // Seed with all known projects (even empty)
+    groups["general"] = [];
+    for (const key of Object.keys(settings.projects)) {
+      groups[key] = [];
+    }
     for (const c of filtered) {
       const proj = c.project || "general";
       if (!groups[proj]) groups[proj] = [];
@@ -203,7 +215,7 @@ export default function TasksPage() {
       return a[0].localeCompare(b[0]);
     });
     return entries;
-  }, [filtered, sortBy]);
+  }, [filtered, sortBy, settings.projects]);
 
   // Counts per tab
   const counts = useMemo(() => {
@@ -218,14 +230,16 @@ export default function TasksPage() {
   const allProjects = useMemo(() => {
     const set = new Set(tasks.map(c => c.project || "general"));
     set.add("general");
+    Object.keys(settings.projects).forEach(k => set.add(k));
     return Array.from(set).sort();
-  }, [tasks]);
+  }, [tasks, settings.projects]);
 
   function toggleProject(proj: string) {
     setCollapsedProjects(prev => {
       const next = new Set(prev);
       if (next.has(proj)) next.delete(proj);
       else next.add(proj);
+      localStorage.setItem("clawhq-collapsed-projects-planning", JSON.stringify([...next]));
       return next;
     });
   }
@@ -272,12 +286,11 @@ export default function TasksPage() {
               <option value="priority">Sort by Priority</option>
               <option value="date">Sort by Date Created</option>
             </select>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-500 text-white text-[13px] font-medium hover:bg-orange-600 transition-all"
-            >
-              <Plus className="h-3.5 w-3.5" /> Add Task
-            </button>
+            <CreateMenu
+              variant="button"
+              onNewTask={() => setShowAddForm(true)}
+              onNewProject={() => setShowNewProject(true)}
+            />
           </div>
         </div>
       </div>
@@ -479,6 +492,7 @@ export default function TasksPage() {
               <button
                 onClick={() => {
                   if (!newProjectName.trim()) return;
+                  createProject(newProjectName, newProjectColor);
                   setShowNewProject(false);
                   setNewProjectName("");
                   setNewProjectColor("bg-blue-400");

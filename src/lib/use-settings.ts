@@ -3,11 +3,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { useGateway } from "@/lib/gateway-context";
 
-export interface ClawHQSettings {
-  projectColors: Record<string, string>;
+export interface ProjectMeta {
+  color?: string;
 }
 
-const DEFAULT_SETTINGS: ClawHQSettings = { projectColors: {} };
+export interface ClawHQSettings {
+  projects: Record<string, ProjectMeta>;
+}
+
+const DEFAULT_SETTINGS: ClawHQSettings = { projects: {} };
 const SETTINGS_PATH = "data/clawhq/settings.json";
 
 // Module-level cache so all components share the same data
@@ -26,7 +30,7 @@ export function useSettings() {
   // Subscribe to cache changes
   useEffect(() => {
     const handler = () => {
-      if (settingsCache) setSettingsLocal({ ...settingsCache });
+      if (settingsCache) setSettingsLocal({ projects: { ...settingsCache.projects } });
     };
     settingsListeners.add(handler);
     return () => { settingsListeners.delete(handler); };
@@ -39,11 +43,13 @@ export function useSettings() {
       try {
         const result = await rpc.request<{ content: string }>("clawhq.files.read", { path: SETTINGS_PATH });
         if (result?.content) {
-          settingsCache = { ...DEFAULT_SETTINGS, ...JSON.parse(result.content) };
-          setSettingsLocal({ ...settingsCache! });
+          const raw = JSON.parse(result.content);
+          settingsCache = {
+            projects: { ...DEFAULT_SETTINGS.projects, ...(raw.projects || {}) },
+          };
+          setSettingsLocal({ ...settingsCache });
         }
       } catch {
-        // File doesn't exist yet — use defaults
         settingsCache = { ...DEFAULT_SETTINGS };
       }
       setLoaded(true);
@@ -51,7 +57,10 @@ export function useSettings() {
   }, [rpc, status]);
 
   const saveSettings = useCallback(async (patch: Partial<ClawHQSettings>) => {
-    const updated = { ...(settingsCache || DEFAULT_SETTINGS), ...patch };
+    const base = settingsCache || DEFAULT_SETTINGS;
+    const updated: ClawHQSettings = {
+      projects: patch.projects ? { ...patch.projects } : { ...base.projects },
+    };
     settingsCache = updated;
     setSettingsLocal({ ...updated });
     notifyListeners();
@@ -68,7 +77,7 @@ export function useSettings() {
   const getProjectColor = useCallback((proj?: string): string => {
     const key = (proj || "").toLowerCase().trim();
     if (!key || key === "general") return "bg-white/40";
-    const custom = settings.projectColors[key];
+    const custom = settings.projects[key]?.color;
     if (custom) return custom;
     // Deterministic hash fallback
     const palette = [
@@ -79,7 +88,7 @@ export function useSettings() {
     let h = 0;
     for (let i = 0; i < key.length; i++) { h = ((h << 5) - h + key.charCodeAt(i)) | 0; }
     return palette[Math.abs(h) % palette.length];
-  }, [settings.projectColors]);
+  }, [settings.projects]);
 
   return { settings, loaded, saveSettings, getProjectColor };
 }

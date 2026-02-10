@@ -36,7 +36,7 @@ import {
   Pencil,
   Trash2,
   Hash,
-  FolderPlus,
+  // FolderPlus moved to CreateMenu component
   MoreHorizontal,
 } from "lucide-react";
 import { useGateway } from "@/lib/gateway-context";
@@ -300,68 +300,7 @@ const ACTIVITY_CACHE_TTL = 60_000;
 
 // ─── Create Menu (+ button dropdown) ───
 
-function CreateMenu({ onNewTask, onNewProject }: {
-  onNewTask: () => void;
-  onNewProject: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
-
-  return (
-    <div className="relative" ref={menuRef}>
-      <button
-        onClick={() => setOpen(!open)}
-        className={cn(
-          "h-6 w-6 rounded-md flex items-center justify-center transition-all",
-          open ? "bg-orange-500/20 text-orange-300" : "text-white/25 hover:text-white/50 hover:bg-white/[0.06]"
-        )}
-        title="Create new…"
-      >
-        <Plus className="h-3.5 w-3.5" />
-      </button>
-
-      {open && (
-        <div className="absolute right-0 top-8 z-50 w-56 rounded-xl border border-white/[0.08] bg-[#1a1816] shadow-2xl shadow-black/60 overflow-hidden">
-          <div className="p-1.5">
-            <button
-              onClick={() => { setOpen(false); onNewTask(); }}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-white/[0.05] transition-colors group"
-            >
-              <div className="h-7 w-7 rounded-lg bg-orange-500/10 flex items-center justify-center group-hover:bg-orange-500/20 transition-colors">
-                <Plus className="h-3.5 w-3.5 text-orange-400" />
-              </div>
-              <div>
-                <div className="text-[13px] font-medium text-white/80">New Task</div>
-                <div className="text-[11px] text-white/30">Add to inbox</div>
-              </div>
-            </button>
-            <button
-              onClick={() => { setOpen(false); onNewProject(); }}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left hover:bg-white/[0.05] transition-colors group"
-            >
-              <div className="h-7 w-7 rounded-lg bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
-                <FolderPlus className="h-3.5 w-3.5 text-blue-400" />
-              </div>
-              <div>
-                <div className="text-[13px] font-medium text-white/80">New Project</div>
-                <div className="text-[11px] text-white/30">Name & color</div>
-              </div>
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+// CreateMenu is imported from @/components/ui/create-menu
 
 // ═══════════════════════════════════════════════════════
 // Dashboard Page
@@ -385,7 +324,13 @@ export default function Dashboard() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [expandedActivityId, setExpandedActivityId] = useState<string | null>(null);
-  const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set());
+  const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const saved = localStorage.getItem("clawhq-collapsed-projects");
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
   const [searchQuery, setSearchQuery] = useState("");
 
   // ─── Resizable columns ───
@@ -600,6 +545,11 @@ export default function Dashboard() {
 
   const inboxGrouped = useMemo(() => {
     const groups: Record<string, Task[]> = {};
+    // Include all known projects (even empty ones)
+    groups["general"] = [];
+    for (const key of Object.keys(settings.projects)) {
+      groups[key] = [];
+    }
     for (const c of inboxItems) {
       const proj = c.project || "general";
       if (!groups[proj]) groups[proj] = [];
@@ -611,13 +561,14 @@ export default function Dashboard() {
       if (b[0] === "general") return 1;
       return a[0].localeCompare(b[0]);
     });
-  }, [inboxItems]);
+  }, [inboxItems, settings.projects]);
 
   const allProjects = useMemo(() => {
     const set = new Set(tasks.map(c => c.project || "general"));
     set.add("general");
+    Object.keys(settings.projects).forEach(k => set.add(k));
     return Array.from(set).sort();
-  }, [tasks]);
+  }, [tasks, settings.projects]);
 
   const recentActivity = useMemo(() =>
     activityItems.filter(i => i.icon !== Activity).slice(0, 30),
@@ -642,7 +593,7 @@ export default function Dashboard() {
     projectMenuOpen, setProjectMenuOpen,
     confirmDeleteProject, setConfirmDeleteProject,
     editingProject, setEditingProject,
-    deleteProject, saveProjectEdit,
+    createProject, deleteProject, saveProjectEdit,
   } = useProjects(tasks, saveTasks);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectColor, setNewProjectColor] = useState("bg-blue-400");
@@ -668,6 +619,7 @@ export default function Dashboard() {
     setCollapsedProjects(prev => {
       const next = new Set(prev);
       if (next.has(proj)) next.delete(proj); else next.add(proj);
+      localStorage.setItem("clawhq-collapsed-projects", JSON.stringify([...next]));
       return next;
     });
   }
@@ -1044,9 +996,7 @@ export default function Dashboard() {
                   onChange={e => setNewProjectName(e.target.value)}
                   onKeyDown={e => {
                     if (e.key === "Enter" && newProjectName.trim()) {
-                      const key = newProjectName.trim().toLowerCase();
-                      const updated = { ...settings.projectColors, [key]: newProjectColor };
-                      saveSettings({ projectColors: updated });
+                      createProject(newProjectName, newProjectColor);
                       setShowNewProject(false); setNewProjectName(""); setNewProjectColor("bg-blue-400");
                     }
                   }}
@@ -1074,9 +1024,7 @@ export default function Dashboard() {
               <button
                 onClick={() => {
                   if (!newProjectName.trim()) return;
-                  const key = newProjectName.trim().toLowerCase();
-                  const updated = { ...settings.projectColors, [key]: newProjectColor };
-                  saveSettings({ projectColors: updated });
+                  createProject(newProjectName, newProjectColor);
                   setShowNewProject(false); setNewProjectName(""); setNewProjectColor("bg-blue-400");
                 }}
                 disabled={!newProjectName.trim()}
@@ -1271,6 +1219,7 @@ import { MarkdownContent } from "@/components/ui/markdown-content";
 import { ToolCardView, ToolSummaryCard, LiveToolCard } from "@/components/ui/tool-cards";
 import { ChatGroup } from "@/components/task-chat";
 import { useAgentIdentity } from "@/lib/use-agent-identity";
+import { CreateMenu } from "@/components/ui/create-menu";
 
 let mainSending = false;
 let mainActiveRunId: string | null = null;
