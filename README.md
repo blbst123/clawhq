@@ -1,52 +1,155 @@
 # 🦞 ClawHQ
 
-Owner-centric dashboard for managing AI agents. Built for [OpenClaw](https://github.com/openclaw/openclaw).
+The personal dashboard for [OpenClaw](https://github.com/openclaw/openclaw) agents. Track costs, manage tasks, browse skills, monitor cron jobs — all from a single UI served by your gateway.
 
-## Vision
+![License](https://img.shields.io/badge/license-MIT-blue)
+![npm](https://img.shields.io/npm/v/clawhq)
 
-ClawHQ is the missing tool for humans who delegate work to AI agents. Not developer observability — **owner productivity**.
+## What is this?
+
+ClawHQ is an OpenClaw plugin that adds a web dashboard to your gateway. It's built for **agent owners** — the humans who delegate work to AI agents and need visibility into what's happening.
+
+No separate server. No extra dependencies. Install the plugin and your gateway serves the dashboard.
 
 ## Features
 
-### Core (MVP)
-- **📊 Cost Dashboard** — Track daily/weekly/monthly spend, per-model breakdown
-- **⏰ Cron Manager** — Visual editor for scheduled jobs, run history, quick actions
-- **📋 Task Board** — Kanban view of delegated work: backlog → in progress → done
+- **📊 Cost Tracking** — Daily spend, per-model breakdown, usage trends
+- **📋 Planning Queue** — Task inbox with priorities, projects, and agent chat per task
+- **⏰ Cron Manager** — View scheduled jobs, run history, enable/disable
+- **📡 Activity Feed** — Real-time session activity across all your agents
+- **🔧 Skills Browser** — See installed skills, eligibility status, and documentation
+- **🔑 Access Overview** — Connected channels, API keys, nodes at a glance
+- **📁 Files** — Browse and view your agent's workspace files
+- **💬 Chat** — Talk to your agent directly from the dashboard
 
-### Coming Soon
-- 💬 Built-in chat with threading
-- 🔌 Connected apps visibility
-- 🤖 Multi-agent switching
-- 📈 Productivity metrics
+## Installation
+
+### From npm (recommended)
+
+```bash
+openclaw plugins install clawhq
+```
+
+Then restart your gateway:
+
+```bash
+openclaw gateway restart
+```
+
+### From source
+
+```bash
+git clone https://github.com/blbst123/clawhq.git
+cd clawhq
+npm install
+npm run build
+```
+
+Then symlink or copy to your OpenClaw extensions directory:
+
+```bash
+mkdir -p ~/.openclaw/workspace/.openclaw/extensions/clawhq
+cp index.ts openclaw.plugin.json ~/.openclaw/workspace/.openclaw/extensions/clawhq/
+cp -r ui ~/.openclaw/workspace/.openclaw/extensions/clawhq/
+openclaw gateway restart
+```
+
+## Accessing the Dashboard
+
+Once installed, open your browser:
+
+```
+http://localhost:18789/clawhq/
+```
+
+> Replace `18789` with your gateway port if you changed it.
+
+On first visit, you'll need to enter your **gateway auth token**. Find it in:
+
+```bash
+cat ~/.openclaw/openclaw.json | grep -A2 '"auth"'
+```
+
+The token is stored in your browser's localStorage — it never leaves your machine.
+
+**Tip:** You can also use a one-click URL: `http://localhost:18789/clawhq/?token=YOUR_TOKEN`
+
+## Using the Task System
+
+ClawHQ includes a planning/task system. Your agent can capture tasks and you can manage them from the dashboard. To enable this, tell your agent:
+
+> "When I ask you to do something that isn't immediate, capture it as a task in ClawHQ. Use the `clawhq.tasks.read` and `clawhq.tasks.write` RPC methods to manage tasks stored in `data/clawhq/tasks.json`."
+
+Or add this to your `AGENTS.md`:
+
+```markdown
+## Task Capture
+When work comes up that isn't immediate, save it as a task:
+- Write tasks to `data/clawhq/tasks.json` via `clawhq.tasks.write` RPC
+- Read existing tasks via `clawhq.tasks.read` RPC  
+- Each task has: id, title, priority (urgent/medium/low/none), project, status, notes
+- Tasks appear in the ClawHQ Planning page for review and prioritization
+```
+
+### Task Structure
+
+Tasks are stored as JSON in your workspace at `data/clawhq/tasks.json`:
+
+```json
+{
+  "cap_abc123": {
+    "id": "cap_abc123",
+    "title": "Redesign the landing page",
+    "priority": "medium",
+    "project": "website",
+    "status": "todo",
+    "notes": "Focus on mobile-first layout",
+    "createdAt": "2026-02-10T12:00:00Z"
+  }
+}
+```
+
+## Configuration
+
+The plugin accepts optional config in `openclaw.plugin.json`:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `basePath` | `/clawhq` | URL path prefix for the dashboard |
 
 ## Tech Stack
 
-- **Framework:** Next.js 14+ (App Router)
-- **Styling:** Tailwind CSS + shadcn/ui
-- **Backend:** Connects to OpenClaw via HTTP API
-- **Real-time:** OpenClaw hooks for live updates
+- **UI:** Next.js 16 (static export) + Tailwind CSS 4
+- **Backend:** OpenClaw plugin (TypeScript) — HTTP routes + RPC methods
+- **Connection:** WebSocket to gateway for real-time data
+- **Data:** JSON files in your workspace (`data/clawhq/`)
 
-## Getting Started
+## Development
 
 ```bash
-# Install dependencies
 npm install
-
-# Run development server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+The dev server runs at `http://localhost:3000`. You'll need a running OpenClaw gateway to connect to.
 
-## OpenClaw Integration
+To build the production UI:
 
-ClawHQ connects to your OpenClaw gateway to fetch:
-- Session data and history
-- Cron job configuration
-- Usage statistics
-- Agent status
+```bash
+npm run build
+```
 
-Configure the gateway URL in Settings.
+This compiles Next.js and copies the static export to `ui/`.
+
+## Contributing
+
+PRs welcome. The codebase is a Next.js app with an OpenClaw plugin entry point (`index.ts`).
+
+Key files:
+- `index.ts` — Plugin: HTTP routes, RPC methods, file serving
+- `src/app/page.tsx` — Dashboard (main page)
+- `src/app/planning/page.tsx` — Task planning board
+- `src/lib/gateway-rpc.ts` — WebSocket RPC client
 
 ## License
 
@@ -54,4 +157,4 @@ MIT
 
 ---
 
-Built with 🦞 by Bill & Lolo
+Built by [Bill](https://github.com/blbst123) & Lolo 🦞
