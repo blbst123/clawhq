@@ -1,13 +1,13 @@
 # 🦞 ClawHQ
 
-The personal dashboard for [OpenClaw](https://github.com/openclaw/openclaw) agents. Track costs, manage tasks, browse skills, monitor cron jobs — all from a single UI served by your gateway.
+I wanted to create a better experience for my [OpenClaw](https://github.com/openclaw/openclaw) agents. Focused on helping people better interact with and manage their agents.
 
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![npm](https://img.shields.io/npm/v/clawhq)
 
 ## What is this?
 
-ClawHQ is an OpenClaw plugin that adds a web dashboard to your gateway. It's built for **agent owners** — the humans who delegate work to AI agents and need visibility into what's happening.
+ClawHQ is an open-source OpenClaw plugin that adds a web dashboard to your gateway. It's built for **agent owners** — the humans who delegate work to AI agents and need visibility into what's happening.
 
 No separate server. No extra dependencies. Install the plugin and your gateway serves the dashboard.
 
@@ -30,9 +30,9 @@ No separate server. No extra dependencies. Install the plugin and your gateway s
 - **🔑 Access Overview** — Connected channels, API keys, nodes at a glance
 - **📁 Files** — Browse and view your agent's workspace files
 
-## Installation
+## 💻 Installation
 
-### From npm (recommended)
+### Option 1: From npm (recommended)
 
 ```bash
 openclaw plugins install clawhq
@@ -44,7 +44,7 @@ Then restart your gateway:
 openclaw gateway restart
 ```
 
-### From source
+### Option 2: From source
 
 ```bash
 git clone https://github.com/blbst123/clawhq.git
@@ -62,7 +62,7 @@ cp -r ui ~/.openclaw/workspace/.openclaw/extensions/clawhq/
 openclaw gateway restart
 ```
 
-## Accessing the Dashboard
+## 📊 Accessing the Dashboard
 
 Once installed, open your browser:
 
@@ -82,7 +82,7 @@ The token is stored in your browser's localStorage — it never leaves your mach
 
 **Tip:** You can also use a one-click URL: `http://localhost:18789/clawhq/?token=YOUR_TOKEN`
 
-## Using the Task System
+## 📚 Using the Task System
 
 ClawHQ includes a planning/task system. Your agent can capture tasks and you can manage them from the dashboard. To enable this, tell your agent:
 
