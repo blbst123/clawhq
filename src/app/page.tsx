@@ -398,11 +398,6 @@ export default function Dashboard() {
     if (!task) return;
     const sessionKey = task.sessionKey || generateSessionKey(id);
     await updateTask(id, { status: "in_progress", sessionKey });
-    const description = task.note || task.quote || "";
-    let kickoff = `Hey, let's discuss this task.\n\nTitle: ${task.summary}`;
-    if (description) kickoff += `\nDescription: ${description}`;
-    kickoff += `\n\nHow do you think we should get started?`;
-    setPendingKickoff(kickoff);
     setActiveChatTaskId(id);
     setExpandedId(null);
   }
@@ -831,8 +826,8 @@ export default function Dashboard() {
                               </span>{" "}
                               {meta.lastMessage.slice(0, 120)}
                             </p>
-                          ) : (task.note || task.quote) ? (
-                            <p className="text-[12px] text-white/30 mt-1.5 line-clamp-1 leading-relaxed">{task.note || task.quote}</p>
+                          ) : (task.note) ? (
+                            <p className="text-[12px] text-white/30 mt-1.5 line-clamp-1 leading-relaxed">{task.note}</p>
                           ) : null}
                           <div className="flex items-center gap-3 mt-2">
                             <div className="flex items-center gap-1.5">
@@ -873,7 +868,6 @@ export default function Dashboard() {
                 summary: chatTask.summary,
                 sessionKey: chatTask.sessionKey!,
                 note: chatTask.note,
-                quote: chatTask.quote,
                 project: chatTask.project,
                 priority: chatTask.priority,
                 status: chatTask.status,
@@ -1144,7 +1138,7 @@ function EditTaskForm({ task, allProjects, onSave, onClose, onDelete, onCreatePr
   onCreateProject: () => void;
 }) {
   const [title, setTitle] = useState(task.summary);
-  const [description, setDescription] = useState(task.note || task.quote || "");
+  const [description, setDescription] = useState(task.note || "");
   const [project, setProject] = useState(task.project || "general");
   const [priority, setPriority] = useState(task.priority || "none");
 
@@ -1199,7 +1193,6 @@ function EditTaskForm({ task, allProjects, onSave, onClose, onDelete, onCreatePr
             onClick={() => onSave({
               summary: title,
               note: description,
-              quote: undefined,
               project,
               priority: priority === "none" ? undefined : priority as Task["priority"],
             })}
@@ -1555,7 +1548,7 @@ function DashboardTaskRow({ task, expanded, onToggle, onStart, onStatusChange, o
   onEdit: () => void;
 }) {
   const [priOpen, setPriOpen] = useState(false);
-  const description = task.note || task.quote || "";
+  const description = task.note || "";
 
   return (
     <div className={cn(

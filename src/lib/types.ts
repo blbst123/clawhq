@@ -5,7 +5,6 @@ export interface Task {
   at: string;
   type: string;
   summary: string;
-  quote?: string;
   source?: string;
   project?: string;
   status: "inbox" | "todo" | "in_progress" | "done" | "dismissed";

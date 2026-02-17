@@ -20,7 +20,6 @@ export interface TaskInfo {
   summary: string;
   sessionKey: string;
   note?: string;
-  quote?: string;
   project?: string;
   priority?: string;
   status: string;
@@ -591,8 +590,8 @@ export function TaskChat({ task, allProjects, onBack, onStatusChange, onPriority
             <span className="text-[11px] text-white/15">•</span>
             <span className="text-[11px] text-white/20">{sessionKey}</span>
           </div>
-          {(task.note || task.quote) && (
-            <p className="text-[13px] text-white/35 line-clamp-2 leading-relaxed">{task.note || task.quote}</p>
+          {(task.note) && (
+            <p className="text-[13px] text-white/35 line-clamp-2 leading-relaxed">{task.note}</p>
           )}
         </div>
 

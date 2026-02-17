@@ -218,16 +218,9 @@ export default function register(api: OpenClawPluginApi) {
     // Strip basePath
     let relativePath = pathname.slice(basePath.length) || "/";
 
-    // Skip auth for static assets (CSS/JS/fonts/images) — no sensitive data
-    const isStaticAsset = relativePath.startsWith("/_next/") || relativePath.startsWith("_next/") ||
-      /\.(css|js|woff2?|png|svg|ico|jpg|jpeg|gif|webp|map)$/i.test(relativePath);
-
-    if (!isStaticAsset && !checkAuth(req, config)) {
-      // Redirect to gateway root for auth
-      res.writeHead(401, { "Content-Type": "text/html" });
-      res.end("<h1>Unauthorized</h1><p>Add ?token=YOUR_TOKEN to the URL.</p>");
-      return true;
-    }
+    // Skip auth for all UI pages — they're static shells with no sensitive data.
+    // Real auth happens at the WebSocket layer; pages are useless without a WS connection.
+    // Only API routes (registered separately via registerHttpRoute) enforce auth.
 
     // Map to file
     if (relativePath === "/") relativePath = "/index.html";

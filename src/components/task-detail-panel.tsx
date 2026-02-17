@@ -51,6 +51,33 @@ const statusOptions = [
 
 const priorityOptions = priOptions;
 
+// ─── Auto-expanding description (Linear-style) ───
+function DescriptionEditor({ value, onChange, onBlur }: {
+  value: string; onChange: (v: string) => void; onBlur: () => void;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize height
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }, [value]);
+
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      onBlur={onBlur}
+      placeholder="Add description..."
+      rows={1}
+      className="w-full bg-transparent text-[14px] text-white/60 placeholder-white/20 focus:outline-none resize-none leading-relaxed overflow-hidden"
+    />
+  );
+}
+
 // ─── Main Component ───
 export function TaskDetailPanel({
   task,
@@ -72,7 +99,7 @@ export function TaskDetailPanel({
   const { getProjectColor } = useSettings();
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState(task.summary);
-  const [descValue, setDescValue] = useState(task.note || task.quote || "");
+  const [descValue, setDescValue] = useState(task.note || "");
   const [showStatus, setShowStatus] = useState(false);
   const [showPriority, setShowPriority] = useState(false);
   const [showProject, setShowProject] = useState(false);
@@ -82,10 +109,10 @@ export function TaskDetailPanel({
   // Sync when task changes
   useEffect(() => {
     setTitleValue(task.summary);
-    setDescValue(task.note || task.quote || "");
+    setDescValue(task.note || "");
     setEditingTitle(false);
     setShowDeleteConfirm(false);
-  }, [task.id, task.summary, task.note, task.quote]);
+  }, [task.id, task.summary, task.note]);
 
   // Escape to close
   useEffect(() => {
@@ -108,9 +135,9 @@ export function TaskDetailPanel({
 
   function saveDescription() {
     const trimmed = descValue.trim();
-    const current = (task.note || task.quote || "").trim();
+    const current = (task.note || "").trim();
     if (trimmed !== current) {
-      onUpdate({ note: trimmed || undefined, quote: undefined });
+      onUpdate({ note: trimmed || undefined });
     }
   }
 
@@ -154,8 +181,17 @@ export function TaskDetailPanel({
           )}
         </div>
 
+        {/* Description */}
+        <div className="px-5 pt-1 pb-4">
+          <DescriptionEditor
+            value={descValue}
+            onChange={setDescValue}
+            onBlur={saveDescription}
+          />
+        </div>
+
         {/* Properties row */}
-        <div className="px-5 flex items-center gap-2 flex-wrap">
+        <div className="px-5 pb-4 flex items-center gap-2 flex-wrap">
           {/* Status */}
           <div className="relative">
             <button
@@ -245,31 +281,6 @@ export function TaskDetailPanel({
           )}
         </div>
 
-        {/* Divider */}
-        <div className="mx-5 my-4 border-t border-white/5" />
-
-        {/* Description */}
-        <div className="px-5 pb-5">
-          <label className="block text-[12px] text-white/30 mb-2">Description</label>
-          <textarea
-            value={descValue}
-            onChange={e => setDescValue(e.target.value)}
-            onBlur={saveDescription}
-            placeholder="Add a description..."
-            rows={6}
-            className="w-full bg-white/[0.02] border border-white/[0.06] rounded-lg px-3 py-2.5 text-[13px] text-white/70 placeholder-white/15 focus:border-orange-500/30 focus:outline-none transition-colors resize-none leading-relaxed"
-          />
-        </div>
-
-        {/* Quote (if from conversation) */}
-        {task.quote && task.note !== task.quote && (
-          <div className="px-5 pb-5">
-            <label className="block text-[12px] text-white/30 mb-2">Original Quote</label>
-            <div className="border-l-2 border-white/10 pl-3 py-1">
-              <p className="text-[12px] text-white/30 italic leading-relaxed">{task.quote}</p>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Footer actions */}

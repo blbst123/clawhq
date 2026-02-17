@@ -118,12 +118,6 @@ export default function TasksPage() {
     if (!task) return;
     const sessionKey = task.sessionKey || generateSessionKey(id);
     await updateTask(id, { status: "in_progress", sessionKey });
-    // Build kickoff message for TaskChat to auto-send
-    const description = task.note || task.quote || "";
-    let kickoff = `Hey, let's discuss this task.\n\nTitle: ${task.summary}`;
-    if (description) kickoff += `\nDescription: ${description}`;
-    kickoff += `\n\nHow do you think we should get started?`;
-    setPendingKickoff(kickoff);
     setActiveTab("active");
     setActiveChatTaskId(id);
     setExpandedId(null);
@@ -161,7 +155,6 @@ export default function TasksPage() {
       items = items.filter(c =>
         c.summary.toLowerCase().includes(q) ||
         (c.note || "").toLowerCase().includes(q) ||
-        (c.quote || "").toLowerCase().includes(q) ||
         (c.project || "").toLowerCase().includes(q) ||
         (c.type || "").toLowerCase().includes(q)
       );
@@ -662,11 +655,8 @@ export default function TasksPage() {
                           <TaskRow
                             key={task.id}
                             task={task}
-                            expanded={activeTab !== "active" && selectedTaskId === task.id}
-                            onToggle={() => {
-                              if (activeTab === "active") { openTaskChat(task.id); }
-                              else { setSelectedTaskId(selectedTaskId === task.id ? null : task.id); }
-                            }}
+                            expanded={false}
+                            onToggle={() => { setSelectedTaskId(selectedTaskId === task.id ? null : task.id); }}
                             onStatusChange={(status) => updateTask(task.id, { status })}
                             onDelete={() => confirmDelete(task.id)}
                             onUpdate={(patch) => updateTask(task.id, patch)}
@@ -755,11 +745,8 @@ export default function TasksPage() {
                           <TaskRow
                             key={task.id}
                             task={task}
-                            expanded={activeTab !== "active" && selectedTaskId === task.id}
-                            onToggle={() => {
-                              if (activeTab === "active") { openTaskChat(task.id); }
-                              else { setSelectedTaskId(selectedTaskId === task.id ? null : task.id); }
-                            }}
+                            expanded={false}
+                            onToggle={() => { setSelectedTaskId(selectedTaskId === task.id ? null : task.id); }}
                             onStatusChange={(status) => updateTask(task.id, { status })}
                             onDelete={() => confirmDelete(task.id)}
                             onUpdate={(patch) => updateTask(task.id, patch)}
@@ -813,7 +800,6 @@ export default function TasksPage() {
                 summary: task.summary,
                 sessionKey: task.sessionKey!,
                 note: task.note,
-                quote: task.quote,
                 project: task.project,
                 priority: task.priority,
                 status: task.status,
@@ -909,7 +895,7 @@ function TaskRow({
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
-  const description = task.note || task.quote || "";
+  const description = task.note || "";
 
   return (
     <div className={cn(
@@ -1114,7 +1100,7 @@ function EditTaskModal({
   onCreateProject: () => void;
 }) {
   const [title, setTitle] = useState(task.summary);
-  const [description, setDescription] = useState(task.note || task.quote || "");
+  const [description, setDescription] = useState(task.note || "");
   const [project, setProject] = useState(task.project || "general");
   const [priority, setPriority] = useState(task.priority || "none");
 
@@ -1176,7 +1162,6 @@ function EditTaskModal({
               onClick={() => onSave({
                 summary: title,
                 note: description,
-                quote: undefined,
                 project,
                 priority: priority === "none" ? undefined : priority as Task["priority"],
               })}
