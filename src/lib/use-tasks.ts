@@ -11,12 +11,34 @@ const TASKS_API = "/api/clawhq/tasks.json";
 let tasksCache: { data: Task[]; ts: number } | null = null;
 let tasksListeners = new Set<() => void>();
 
+const LS_KEY = "clawhq-tasks-cache";
+const LS_MAX_AGE = 5 * 60_000; // 5 min staleness for localStorage cache
+
+// Hydrate from localStorage on module load
+try {
+  if (typeof window !== "undefined") {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.data && Date.now() - parsed.ts < LS_MAX_AGE) {
+        tasksCache = parsed;
+      }
+    }
+  }
+} catch { /* ignore */ }
+
 function notifyListeners() {
   tasksListeners.forEach(fn => fn());
 }
 
+function persistCache(data: Task[]) {
+  const entry = { data, ts: Date.now() };
+  tasksCache = entry;
+  try { localStorage.setItem(LS_KEY, JSON.stringify(entry)); } catch { /* */ }
+}
+
 export function useTasks() {
-  const { rpc } = useGateway();
+  const { rpc, status: connStatus } = useGateway();
   const [tasks, setTasksLocal] = useState<Task[]>(tasksCache?.data ?? []);
   const [loading, setLoading] = useState(!tasksCache);
   const [saving, setSaving] = useState(false);
@@ -30,12 +52,12 @@ export function useTasks() {
     return () => { tasksListeners.delete(handler); };
   }, []);
 
-  // Load on mount
+  // Load on mount and retry when connection establishes
   useEffect(() => {
     if (tasksCache) { setTasksLocal(tasksCache.data); setLoading(false); return; }
-    loadTasks();
+    if (connStatus === "connected") loadTasks();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [connStatus]);
 
   async function loadTasks() {
     setLoading(true);
@@ -44,7 +66,7 @@ export function useTasks() {
       if (res.ok) {
         const parsed = await res.json();
         const data = Array.isArray(parsed) ? parsed : [];
-        tasksCache = { data, ts: Date.now() };
+        persistCache(data);
         setTasksLocal(data);
         notifyListeners();
         setLoading(false);
@@ -56,7 +78,7 @@ export function useTasks() {
       if (result?.content) {
         const data = JSON.parse(result.content);
         const arr = Array.isArray(data) ? data : [];
-        tasksCache = { data: arr, ts: Date.now() };
+        persistCache(arr);
         setTasksLocal(arr);
         notifyListeners();
       }
@@ -69,7 +91,7 @@ export function useTasks() {
     try {
       await rpc?.request("clawhq.files.write", { path: TASKS_PATH, content: JSON.stringify(updated, null, 2) });
     } catch { /* */ }
-    tasksCache = { data: updated, ts: Date.now() };
+    persistCache(updated);
     setTasksLocal(updated);
     notifyListeners();
     setSaving(false);

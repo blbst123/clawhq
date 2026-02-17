@@ -26,7 +26,7 @@ const navigation = [
   { name: "Activity", href: "/activity", icon: Zap },
   { name: "Planning", href: "/planning", icon: ListTodo },
   { name: "Cron Jobs", href: "/cron", icon: Clock },
-  // { name: "Calendar", href: "/calendar", icon: Calendar }, // TODO: re-enable when calendar page is ready
+  { name: "Calendar", href: "/calendar", icon: Calendar },
   { name: "Costs", href: "/costs", icon: DollarSign },
   { name: "Files", href: "/memory", icon: FileText },
   { name: "Skills", href: "/skills", icon: Wrench },

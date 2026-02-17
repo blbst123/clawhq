@@ -23,6 +23,7 @@ import {
 import { useGateway } from "@/lib/gateway-context";
 import { cn } from "@/lib/utils";
 import { TaskChat } from "@/components/task-chat";
+import { TaskDetailPanel } from "@/components/task-detail-panel";
 import { PriorityIcon, priOptions, projLabel } from "@/components/ui/priority-icon";
 import { StatusIcon } from "@/components/ui/status-icon";
 import { useSettings } from "@/lib/use-settings";
@@ -80,6 +81,7 @@ export default function TasksPage() {
   const [sortBy, setSortBy] = useState<"project" | "priority" | "date">("project");
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [activeChatTaskId, setActiveChatTaskId] = useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [pendingKickoff, setPendingKickoff] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [newProjectName, setNewProjectName] = useState("");
@@ -305,7 +307,7 @@ export default function TasksPage() {
             return (
               <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => { setActiveTab(tab.key); setSelectedTaskId(null); }}
                 className={cn(
                   "flex items-center gap-2 px-4 py-3 text-[15px] font-medium border-b-2 transition-all",
                   isActive
@@ -610,7 +612,8 @@ export default function TasksPage() {
       {/* Task list (always visible) */}
       <div className={cn(
         "overflow-y-auto transition-all",
-        activeChatTaskId && activeTab === "active" ? "w-[340px] min-w-[340px] border-r border-white/5" : "flex-1"
+        (activeChatTaskId && activeTab === "active") || (selectedTaskId && activeTab !== "active")
+          ? "w-[340px] min-w-[340px] border-r border-white/5" : "flex-1"
       )}>
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -659,17 +662,21 @@ export default function TasksPage() {
                           <TaskRow
                             key={task.id}
                             task={task}
-                            expanded={activeTab === "active" ? false : expandedId === task.id}
-                            onToggle={() => activeTab === "active" ? openTaskChat(task.id) : setExpandedId(expandedId === task.id ? null : task.id)}
+                            expanded={activeTab !== "active" && selectedTaskId === task.id}
+                            onToggle={() => {
+                              if (activeTab === "active") { openTaskChat(task.id); }
+                              else { setSelectedTaskId(selectedTaskId === task.id ? null : task.id); }
+                            }}
                             onStatusChange={(status) => updateTask(task.id, { status })}
                             onDelete={() => confirmDelete(task.id)}
                             onUpdate={(patch) => updateTask(task.id, patch)}
                             allProjects={allProjects}
                             onCreateProject={() => setShowNewProject(true)}
-                            onEditOpen={() => setEditingTask(task)}
+                            onEditOpen={() => setSelectedTaskId(task.id)}
                             onStart={() => startTask(task.id)}
                             onOpenChat={() => openTaskChat(task.id)}
                             isActiveChat={activeChatTaskId === task.id}
+                            isSelected={selectedTaskId === task.id}
                           />
                         ))}
                       </div>
@@ -748,17 +755,21 @@ export default function TasksPage() {
                           <TaskRow
                             key={task.id}
                             task={task}
-                            expanded={activeTab === "active" ? false : expandedId === task.id}
-                            onToggle={() => activeTab === "active" ? openTaskChat(task.id) : setExpandedId(expandedId === task.id ? null : task.id)}
+                            expanded={activeTab !== "active" && selectedTaskId === task.id}
+                            onToggle={() => {
+                              if (activeTab === "active") { openTaskChat(task.id); }
+                              else { setSelectedTaskId(selectedTaskId === task.id ? null : task.id); }
+                            }}
                             onStatusChange={(status) => updateTask(task.id, { status })}
                             onDelete={() => confirmDelete(task.id)}
                             onUpdate={(patch) => updateTask(task.id, patch)}
                             allProjects={allProjects}
                             onCreateProject={() => setShowNewProject(true)}
-                            onEditOpen={() => setEditingTask(task)}
+                            onEditOpen={() => setSelectedTaskId(task.id)}
                             onStart={() => startTask(task.id)}
                             onOpenChat={() => openTaskChat(task.id)}
                             isActiveChat={activeChatTaskId === task.id}
+                            isSelected={selectedTaskId === task.id}
                           />
                         ))}
                       </div>
@@ -771,6 +782,24 @@ export default function TasksPage() {
           </div>
         )}
       </div>
+
+      {/* Chat panel (right side, active tab only) */}
+      {/* Detail panel (right side, inbox/done tabs) */}
+      {selectedTaskId && activeTab !== "active" && (() => {
+        const task = tasks.find(c => c.id === selectedTaskId);
+        if (!task) return null;
+        return (
+          <TaskDetailPanel
+            task={task}
+            allProjects={allProjects}
+            onUpdate={(patch) => updateTask(task.id, patch)}
+            onDelete={() => { deleteTask(task.id); setSelectedTaskId(null); }}
+            onStart={() => startTask(task.id)}
+            onClose={() => setSelectedTaskId(null)}
+            onCreateProject={() => setShowNewProject(true)}
+          />
+        );
+      })()}
 
       {/* Chat panel (right side, active tab only) */}
       {activeChatTaskId && activeTab === "active" && (() => {
@@ -859,6 +888,7 @@ function TaskRow({
   onStart,
   onOpenChat,
   isActiveChat,
+  isSelected,
 }: {
   task: Task;
   expanded: boolean;
@@ -872,6 +902,7 @@ function TaskRow({
   onStart?: () => void;
   onOpenChat?: () => void;
   isActiveChat?: boolean;
+  isSelected?: boolean;
 }) {
   const { getProjectColor } = useSettings();
   const isDone = task.status === "done";
@@ -883,7 +914,7 @@ function TaskRow({
   return (
     <div className={cn(
       "rounded-lg border transition-all",
-      isActiveChat
+      isActiveChat || isSelected
         ? "bg-orange-500/[0.08] border-orange-500/30"
         : expanded
           ? "bg-white/[0.03] border-orange-500/20"
