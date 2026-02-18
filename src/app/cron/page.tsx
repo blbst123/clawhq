@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useGateway } from "@/lib/gateway-context";
 import { useCachedRpc, invalidateCache } from "@/lib/use-cached-rpc";
+import { ConfirmDeleteModal } from "@/components/ui/confirm-delete-modal";
 
 interface CronJob {
   id: string;
@@ -357,47 +358,31 @@ function ExpandedDetails({ job, onEdit, onRun, onToggleEnabled, onDelete }: { jo
           </button>
           {showManageMenu && (
             <div className="absolute left-0 bottom-full mb-1 w-56 rounded-xl bg-[#1a1614] border border-white/10 shadow-2xl shadow-black/40 z-50 overflow-hidden" onClick={e => e.stopPropagation()}>
-              {!confirmDelete ? (
-                <>
-                  <button
-                    onClick={() => { onToggleEnabled(job); setShowManageMenu(false); }}
-                    className="w-full text-left px-4 py-3 text-[13px] text-white/60 hover:bg-white/5 transition-all flex items-center gap-2"
-                  >
-                    {job.enabled ? (
-                      <><span className="h-2 w-2 rounded-full bg-yellow-400/60" /> Pause this job</>
-                    ) : (
-                      <><span className="h-2 w-2 rounded-full bg-green-400/60" /> Enable this job</>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setConfirmDelete(true)}
-                    className="w-full text-left px-4 py-3 text-[13px] text-red-400/70 hover:bg-red-500/5 transition-all flex items-center gap-2 border-t border-white/5"
-                  >
-                    <span className="h-2 w-2 rounded-full bg-red-400/60" /> Delete this job
-                  </button>
-                </>
-              ) : (
-                <div className="p-4 space-y-3">
-                  <p className="text-[13px] text-white/60">Delete <strong className="text-white/80">{job.name || job.id.slice(0, 8)}</strong>? This can&apos;t be undone.</p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      disabled={deleting}
-                      onClick={async () => { setDeleting(true); await onDelete(job); setShowManageMenu(false); }}
-                      className="px-3 py-1.5 rounded-lg bg-red-500/20 text-red-300 text-[12px] hover:bg-red-500/30 transition-all disabled:opacity-50"
-                    >
-                      {deleting ? "Deleting…" : "Yes, delete"}
-                    </button>
-                    <button
-                      onClick={() => setConfirmDelete(false)}
-                      className="px-3 py-1.5 rounded-lg bg-white/5 text-white/40 text-[12px] hover:bg-white/10 transition-all"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
+              <button
+                onClick={() => { onToggleEnabled(job); setShowManageMenu(false); }}
+                className="w-full text-left px-4 py-3 text-[13px] text-white/60 hover:bg-white/5 transition-all flex items-center gap-2"
+              >
+                {job.enabled ? (
+                  <><span className="h-2 w-2 rounded-full bg-yellow-400/60" /> Pause this job</>
+                ) : (
+                  <><span className="h-2 w-2 rounded-full bg-green-400/60" /> Enable this job</>
+                )}
+              </button>
+              <button
+                onClick={() => { setConfirmDelete(true); setShowManageMenu(false); }}
+                className="w-full text-left px-4 py-3 text-[13px] text-red-400/70 hover:bg-red-500/5 transition-all flex items-center gap-2 border-t border-white/5"
+              >
+                <span className="h-2 w-2 rounded-full bg-red-400/60" /> Delete this job
+              </button>
             </div>
           )}
+          <ConfirmDeleteModal
+            open={confirmDelete}
+            title="Delete job"
+            message={<>Delete <strong className="text-white/80">{job.name || job.id.slice(0, 8)}</strong>? This can&apos;t be undone.</>}
+            onConfirm={async () => { setDeleting(true); await onDelete(job); setConfirmDelete(false); }}
+            onCancel={() => setConfirmDelete(false)}
+          />
         </div>
       </div>
     </div>

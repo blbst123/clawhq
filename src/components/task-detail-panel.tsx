@@ -13,35 +13,13 @@ import {
 import { cn } from "@/lib/utils";
 import { PriorityIcon, priOptions, projLabel } from "@/components/ui/priority-icon";
 import { StatusIcon } from "@/components/ui/status-icon";
+import { ConfirmDeleteModal } from "@/components/ui/confirm-delete-modal";
+import { InlineDropdown } from "@/components/ui/inline-dropdown";
 import { useSettings } from "@/lib/use-settings";
 import { timeAgo } from "@/lib/task-utils";
 import type { Task } from "@/lib/types";
 
-// ─── Click outside hook ───
-function useClickOutside(ref: React.RefObject<HTMLElement | null>, handler: () => void) {
-  useEffect(() => {
-    function listener(e: MouseEvent) {
-      if (!ref.current || ref.current.contains(e.target as Node)) return;
-      handler();
-    }
-    document.addEventListener("mousedown", listener);
-    return () => document.removeEventListener("mousedown", listener);
-  }, [ref, handler]);
-}
-
-// ─── Inline Dropdown ───
-function InlineDropdown({ show, onClose, children, className }: {
-  show: boolean; onClose: () => void; children: React.ReactNode; className?: string;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  useClickOutside(ref, onClose);
-  if (!show) return null;
-  return (
-    <div ref={ref} className={cn("absolute top-full left-0 mt-1 z-50 bg-[#1a1614] border border-white/10 rounded-lg shadow-xl py-1", className)}>
-      {children}
-    </div>
-  );
-}
+// InlineDropdown imported from @/components/ui/inline-dropdown
 
 const statusOptions = [
   { key: "inbox", label: "Inbox" },
@@ -318,27 +296,19 @@ export function TaskDetailPanel({
           </button>
         )}
         <div className="flex-1" />
-        {showDeleteConfirm ? (
-          <div className="flex items-center gap-2">
-            <span className="text-[12px] text-red-400/60">Delete?</span>
-            <button onClick={() => { onDelete(); onClose(); }}
-              className="text-[12px] px-2.5 py-1 rounded-md bg-red-500 text-white hover:bg-red-600 transition-all">
-              Yes
-            </button>
-            <button onClick={() => setShowDeleteConfirm(false)}
-              className="text-[12px] px-2.5 py-1 rounded-md text-white/40 hover:text-white/60 transition-all">
-              No
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="p-1.5 rounded-lg hover:bg-red-500/20 text-white/20 hover:text-red-400 transition-all"
-            title="Delete"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
-        )}
+        <button
+          onClick={() => setShowDeleteConfirm(true)}
+          className="p-1.5 rounded-lg hover:bg-red-500/20 text-white/20 hover:text-red-400 transition-all"
+          title="Delete"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+        <ConfirmDeleteModal
+          open={showDeleteConfirm}
+          message={<>Delete <strong className="text-white/80">{task.summary}</strong>? This can&apos;t be undone.</>}
+          onConfirm={() => { onDelete(); onClose(); }}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
       </div>
     </div>
   );

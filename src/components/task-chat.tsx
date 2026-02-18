@@ -12,6 +12,7 @@ import { MarkdownContent } from "@/components/ui/markdown-content";
 import { ToolCardView, ToolSummaryCard, LiveToolCard } from "@/components/ui/tool-cards";
 import { PriorityIcon, priLabels, priColors, priOptions, projColor, projLabel } from "@/components/ui/priority-icon";
 import { InlineDropdown } from "@/components/ui/inline-dropdown";
+import { ConfirmDeleteModal } from "@/components/ui/confirm-delete-modal";
 
 // ─── Types ───
 
@@ -625,21 +626,12 @@ export function TaskChat({ task, allProjects, onBack, onStatusChange, onPriority
       </div>
 
       {/* Delete confirmation */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowDeleteConfirm(false)} />
-          <div className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-[#1a1614] shadow-2xl shadow-black/40 p-5">
-            <h3 className="text-[15px] font-semibold text-white/90 mb-2">Delete task?</h3>
-            <p className="text-[13px] text-white/40 mb-4">This will permanently delete &ldquo;{taskSummary}&rdquo; and cannot be undone.</p>
-            <div className="flex items-center justify-end gap-2">
-              <button onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 rounded-lg text-[13px] text-white/40 hover:text-white/60 hover:bg-white/5 transition-all">Cancel</button>
-              <button onClick={() => { setShowDeleteConfirm(false); onDelete?.(); }}
-                className="px-4 py-2 rounded-lg bg-red-500 text-white text-[13px] font-medium hover:bg-red-600 transition-all">Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDeleteModal
+        open={showDeleteConfirm}
+        message={<>Delete <strong className="text-white/80">{taskSummary}</strong>? This can&apos;t be undone.</>}
+        onConfirm={() => { setShowDeleteConfirm(false); onDelete?.(); }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
 
       {/* Messages */}
       <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-6">

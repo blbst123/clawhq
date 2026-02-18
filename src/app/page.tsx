@@ -47,8 +47,9 @@ import { StatusIcon } from "@/components/ui/status-icon";
 import { useSettings } from "@/lib/use-settings";
 import { useProjects } from "@/lib/use-projects";
 import { useTasks } from "@/lib/use-tasks";
-import { timeAgo, formatTime, priSort, generateSessionKey } from "@/lib/task-utils";
+import { timeAgo, formatTime, formatDate, priSort, generateSessionKey } from "@/lib/task-utils";
 import type { Task } from "@/lib/types";
+import { ConfirmDeleteModal } from "@/components/ui/confirm-delete-modal";
 
 // ─── Types ───
 
@@ -254,15 +255,7 @@ function parseAndGroup(sessionKey: string, sessionLabel: string, rawMessages: un
   return items;
 }
 
-function formatDate(ts: number): string {
-  const d = new Date(ts); const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const yesterday = new Date(today.getTime() - 86400000);
-  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  if (day.getTime() === today.getTime()) return "Today";
-  if (day.getTime() === yesterday.getTime()) return "Yesterday";
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
+// formatDate imported from @/lib/task-utils
 
 function parseChannel(label?: string): string {
   if (!label) return "";
@@ -590,8 +583,8 @@ export default function Dashboard() {
     editingProject, setEditingProject,
     createProject, deleteProject, saveProjectEdit,
   } = useProjects(tasks, saveTasks);
-  const [newProjectName, setNewProjectName] = useState("");
-  const [newProjectColor, setNewProjectColor] = useState("bg-blue-400");
+  // newProjectName/Color state moved into NewProjectModal
+  const { menu: ctxMenu, handleContextMenu, close: closeCtxMenu } = useTaskContextMenu();
   // getProjectColor comes from useSettings hook
 
   async function addTask() {
@@ -749,15 +742,18 @@ export default function Dashboard() {
                   {!collapsedProjects.has(proj) && (
                     <div className="ml-2 space-y-1">
                       {items.map(task => (
-                        <DashboardTaskRow
+                        <TaskRow
                           key={task.id}
                           task={task}
+                          compact
                           expanded={expandedId === task.id}
                           onToggle={() => setExpandedId(expandedId === task.id ? null : task.id)}
                           onStart={() => startTask(task.id)}
                           onStatusChange={(status) => updateTask(task.id, { status })}
-                          onPriorityChange={(pri) => updateTask(task.id, { priority: pri })}
+                          onUpdate={(patch) => updateTask(task.id, patch)}
                           onEdit={() => setEditingTask(task)}
+                          onDelete={() => deleteTask(task.id)}
+                          onContextMenu={handleContextMenu}
                         />
                       ))}
                     </div>
@@ -891,6 +887,23 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Context Menu */}
+      {ctxMenu && (
+        <TaskContextMenu
+          task={ctxMenu.task}
+          position={ctxMenu.pos}
+          allProjects={allProjects}
+          onStatusChange={(status) => { updateTask(ctxMenu.task.id, { status }); closeCtxMenu(); }}
+          onPriorityChange={(pri) => { updateTask(ctxMenu.task.id, { priority: pri }); closeCtxMenu(); }}
+          onProjectChange={(proj) => { updateTask(ctxMenu.task.id, { project: proj }); closeCtxMenu(); }}
+          onEdit={() => { setEditingTask(ctxMenu.task); closeCtxMenu(); }}
+          onDelete={() => { deleteTask(ctxMenu.task.id); closeCtxMenu(); }}
+          onStart={() => { startTask(ctxMenu.task.id); closeCtxMenu(); }}
+          onCreateProject={() => { setShowNewProject(true); closeCtxMenu(); }}
+          onClose={closeCtxMenu}
+        />
+      )}
+
       {/* ═══ Add Task Modal ═══ */}
       {showAddForm && (
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]">
@@ -971,237 +984,39 @@ export default function Dashboard() {
       )}
 
       {/* ═══ New Project Modal ═══ */}
-      {showNewProject && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowNewProject(false)} />
-          <div className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-[#1a1614] shadow-2xl shadow-black/40">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-              <h2 className="text-[15px] font-semibold text-white/90">New Project</h2>
-              <button onClick={() => setShowNewProject(false)} className="text-white/30 hover:text-white/60 transition-colors p-1 rounded-lg hover:bg-white/5">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="px-5 py-4 space-y-4">
-              <div>
-                <label className="block text-[12px] text-white/40 uppercase tracking-wider mb-1.5">Name</label>
-                <input
-                  type="text"
-                  value={newProjectName}
-                  onChange={e => setNewProjectName(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === "Enter" && newProjectName.trim()) {
-                      createProject(newProjectName, newProjectColor);
-                      setShowNewProject(false); setNewProjectName(""); setNewProjectColor("bg-blue-400");
-                    }
-                  }}
-                  placeholder="Project name"
-                  className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-[13px] text-white placeholder-white/20 focus:border-orange-500/30 focus:outline-none transition-colors"
-                  autoFocus
-                />
-              </div>
-              <div>
-                <label className="block text-[12px] text-white/40 uppercase tracking-wider mb-1.5">Color</label>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {["bg-blue-400", "bg-purple-400", "bg-red-400", "bg-orange-400", "bg-green-400", "bg-yellow-400", "bg-pink-400", "bg-cyan-400", "bg-indigo-400"].map(c => (
-                    <button key={c} onClick={() => setNewProjectColor(c)}
-                      className={cn("h-6 w-6 rounded-full transition-all", c,
-                        newProjectColor === c ? "ring-2 ring-white/50 ring-offset-2 ring-offset-[#1a1614]" : "hover:scale-110"
-                      )} />
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/[0.06]">
-              <button onClick={() => setShowNewProject(false)} className="px-4 py-2 rounded-lg text-[13px] text-white/40 hover:text-white/60 hover:bg-white/5 transition-all">
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  if (!newProjectName.trim()) return;
-                  createProject(newProjectName, newProjectColor);
-                  setShowNewProject(false); setNewProjectName(""); setNewProjectColor("bg-blue-400");
-                }}
-                disabled={!newProjectName.trim()}
-                className="px-4 py-2 rounded-lg bg-orange-500 text-white text-[13px] font-medium hover:bg-orange-600 disabled:opacity-30 transition-all"
-              >
-                Create
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <NewProjectModal
+        open={showNewProject}
+        onCreate={(name, color) => { createProject(name, color); setShowNewProject(false); }}
+        onClose={() => setShowNewProject(false)}
+      />
 
       {/* Edit Task Modal */}
       {editingTask && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setEditingTask(null)} />
-          <div className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-[#1a1614] shadow-2xl shadow-black/40">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-              <h2 className="text-[15px] font-semibold text-white/90">Edit Task</h2>
-              <button onClick={() => setEditingTask(null)} className="text-white/30 hover:text-white/60 transition-colors p-1 rounded-lg hover:bg-white/5">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <EditTaskForm
-              task={editingTask}
-              allProjects={allProjects}
-              onSave={(patch) => { updateTask(editingTask.id, patch); setEditingTask(null); }}
-              onClose={() => setEditingTask(null)}
-              onDelete={() => { deleteTask(editingTask.id); setEditingTask(null); }}
-              onCreateProject={() => setShowNewProject(true)}
-            />
-          </div>
-        </div>
+        <EditTaskModal
+          task={editingTask}
+          allProjects={allProjects}
+          onSave={(patch) => { updateTask(editingTask.id, patch); setEditingTask(null); }}
+          onClose={() => setEditingTask(null)}
+          onCreateProject={() => setShowNewProject(true)}
+        />
       )}
 
       {/* Delete Project Confirmation */}
-      {confirmDeleteProject && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setConfirmDeleteProject(null)} />
-          <div className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-[#1a1614] shadow-2xl shadow-black/40">
-            <div className="px-5 py-4 border-b border-white/[0.06]">
-              <h2 className="text-[15px] font-semibold text-white/90">Delete Project</h2>
-            </div>
-            <div className="px-5 py-4">
-              <p className="text-[13px] text-white/60">
-                Delete <span className="font-semibold text-white/80">{projLabel(confirmDeleteProject)}</span>? All tasks will be moved to General.
-              </p>
-            </div>
-            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/[0.06]">
-              <button onClick={() => setConfirmDeleteProject(null)}
-                className="px-4 py-2 rounded-lg text-[13px] text-white/40 hover:text-white/60 hover:bg-white/5 transition-all">
-                Cancel
-              </button>
-              <button onClick={() => deleteProject(confirmDeleteProject)}
-                className="px-4 py-2 rounded-lg bg-red-500 text-white text-[13px] font-medium hover:bg-red-600 transition-all">
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDeleteModal
+        open={!!confirmDeleteProject}
+        title="Delete project"
+        message={<>Delete <strong className="text-white/80">{confirmDeleteProject ? projLabel(confirmDeleteProject) : ""}</strong>? All tasks will be moved to General.</>}
+        onConfirm={() => confirmDeleteProject && deleteProject(confirmDeleteProject)}
+        onCancel={() => setConfirmDeleteProject(null)}
+      />
 
       {/* Edit Project Modal */}
-      {editingProject && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setEditingProject(null)} />
-          <div className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-[#1a1614] shadow-2xl shadow-black/40">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-              <h2 className="text-[15px] font-semibold text-white/90">Edit Project</h2>
-              <button onClick={() => setEditingProject(null)} className="text-white/30 hover:text-white/60 transition-colors p-1 rounded-lg hover:bg-white/5">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="px-5 py-4 space-y-4">
-              <div>
-                <label className="block text-[12px] text-white/40 uppercase tracking-wider mb-1.5">Name</label>
-                <input type="text" value={editingProject.name}
-                  onChange={e => setEditingProject({ ...editingProject, name: e.target.value })}
-                  onKeyDown={e => { if (e.key === "Enter") saveProjectEdit(editingProject.key, editingProject.name, editingProject.color); }}
-                  className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-[13px] text-white placeholder-white/20 focus:border-orange-500/30 focus:outline-none transition-colors"
-                  autoFocus />
-              </div>
-              <div>
-                <label className="block text-[12px] text-white/40 uppercase tracking-wider mb-1.5">Color</label>
-                <div className="flex items-center gap-2 flex-wrap">
-                  {["bg-purple-400", "bg-blue-400", "bg-cyan-400", "bg-teal-400", "bg-green-400", "bg-amber-400", "bg-orange-400", "bg-red-400", "bg-pink-400", "bg-indigo-400", "bg-violet-400", "bg-fuchsia-400", "bg-sky-400"].map(c => (
-                    <button key={c} onClick={() => setEditingProject({ ...editingProject, color: c })}
-                      className={cn("h-6 w-6 rounded-full transition-all", c,
-                        editingProject.color === c ? "ring-2 ring-white/50 ring-offset-2 ring-offset-[#1a1614]" : "hover:scale-110"
-                      )} />
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-white/[0.06]">
-              <button onClick={() => setEditingProject(null)}
-                className="px-4 py-2 rounded-lg text-[13px] text-white/40 hover:text-white/60 hover:bg-white/5 transition-all">Cancel</button>
-              <button onClick={() => saveProjectEdit(editingProject.key, editingProject.name, editingProject.color)}
-                disabled={!editingProject.name.trim()}
-                className="px-4 py-2 rounded-lg bg-orange-500 text-white text-[13px] font-medium hover:bg-orange-600 disabled:opacity-30 transition-all">Save</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <EditProjectModal
+        project={editingProject}
+        onSave={(key, name, color) => { saveProjectEdit(key, name, color); setEditingProject(null); }}
+        onClose={() => setEditingProject(null)}
+      />
     </div>
-  );
-}
-
-// ─── Edit Task Form (shared between dashboard and planning) ───
-
-function EditTaskForm({ task, allProjects, onSave, onClose, onDelete, onCreateProject }: {
-  task: Task;
-  allProjects: string[];
-  onSave: (patch: Partial<Task>) => void;
-  onClose: () => void;
-  onDelete: () => void;
-  onCreateProject: () => void;
-}) {
-  const [title, setTitle] = useState(task.summary);
-  const [description, setDescription] = useState(task.note || "");
-  const [project, setProject] = useState(task.project || "general");
-  const [priority, setPriority] = useState(task.priority || "none");
-
-  return (
-    <>
-      <div className="px-5 py-4 space-y-4">
-        <div>
-          <label className="block text-[12px] text-white/40 uppercase tracking-wider mb-1.5">Title</label>
-          <input type="text" value={title} onChange={e => setTitle(e.target.value)}
-            className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-[13px] text-white placeholder-white/20 focus:border-orange-500/30 focus:outline-none transition-colors"
-            autoFocus />
-        </div>
-        <div>
-          <label className="block text-[12px] text-white/40 uppercase tracking-wider mb-1.5">Description</label>
-          <textarea value={description} onChange={e => setDescription(e.target.value)}
-            placeholder="Add details..." rows={4}
-            className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-[13px] text-white placeholder-white/20 focus:border-orange-500/30 focus:outline-none transition-colors resize-none" />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-[12px] text-white/40 uppercase tracking-wider mb-1.5">Project</label>
-            <select value={project} onChange={e => e.target.value === "__new__" ? onCreateProject() : setProject(e.target.value)}
-              className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 pr-10 py-2 text-[13px] text-white focus:border-orange-500/30 focus:outline-none transition-colors appearance-none bg-[length:16px] bg-[right_12px_center] bg-no-repeat bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22rgba(255%2C255%2C255%2C0.3)%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')]">
-              {allProjects.map(p => (
-                <option key={p} value={p}>{projLabel(p)}</option>
-              ))}
-              <option value="__new__">+ New project</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-[12px] text-white/40 uppercase tracking-wider mb-1.5">Priority</label>
-            <select value={priority} onChange={e => setPriority(e.target.value)}
-              className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 pr-10 py-2 text-[13px] text-white focus:border-orange-500/30 focus:outline-none transition-colors appearance-none bg-[length:16px] bg-[right_12px_center] bg-no-repeat bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2216%22%20height%3D%2216%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22rgba(255%2C255%2C255%2C0.3)%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')]">
-              {priOptions.map(p => (
-                <option key={p.key} value={p.key}>{p.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-      </div>
-      <div className="flex items-center justify-between px-5 py-3 border-t border-white/[0.06]">
-        <button onClick={onDelete}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[13px] text-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-all">
-          <Trash2 className="h-3.5 w-3.5" /> Delete
-        </button>
-        <div className="flex items-center gap-2">
-          <button onClick={onClose}
-            className="px-4 py-2 rounded-lg text-[13px] text-white/40 hover:text-white/60 hover:bg-white/5 transition-all">
-            Cancel
-          </button>
-          <button
-            onClick={() => onSave({
-              summary: title,
-              note: description,
-              project,
-              priority: priority === "none" ? undefined : priority as Task["priority"],
-            })}
-            className="px-4 py-2 rounded-lg bg-orange-500 text-white text-[13px] font-medium hover:bg-orange-600 transition-all">
-            Save
-          </button>
-        </div>
-      </div>
-    </>
   );
 }
 
@@ -1213,6 +1028,10 @@ import { ToolCardView, ToolSummaryCard, LiveToolCard } from "@/components/ui/too
 import { ChatGroup } from "@/components/task-chat";
 import { useAgentIdentity } from "@/lib/use-agent-identity";
 import { CreateMenu } from "@/components/ui/create-menu";
+import { TaskContextMenu, useTaskContextMenu } from "@/components/ui/task-context-menu";
+import { TaskRow } from "@/components/ui/task-row";
+import { EditTaskModal } from "@/components/ui/edit-task-modal";
+import { NewProjectModal, EditProjectModal } from "@/components/ui/project-modals";
 
 let mainSending = false;
 let mainActiveRunId: string | null = null;
@@ -1536,70 +1355,3 @@ function MainChat() {
   );
 }
 
-// ─── Compact Task Row for Dashboard ───
-
-function DashboardTaskRow({ task, expanded, onToggle, onStart, onStatusChange, onPriorityChange, onEdit }: {
-  task: Task;
-  expanded: boolean;
-  onToggle: () => void;
-  onStart: () => void;
-  onStatusChange: (status: Task["status"]) => void;
-  onPriorityChange: (priority: Task["priority"]) => void;
-  onEdit: () => void;
-}) {
-  const [priOpen, setPriOpen] = useState(false);
-  const description = task.note || "";
-
-  return (
-    <div className={cn(
-      "rounded-lg border transition-all",
-      expanded ? "bg-white/[0.03] border-orange-500/20" : "bg-white/[0.015] border-white/5 hover:border-white/10"
-    )}>
-      <div className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-white/[0.01] transition-all" onClick={onToggle}>
-        <div className="relative shrink-0" onClick={e => { e.stopPropagation(); setPriOpen(!priOpen); }}>
-          <PriorityIcon priority={task.priority} className="h-4 w-4 cursor-pointer hover:scale-110 transition-transform" />
-          {priOpen && (<>
-            <div className="fixed inset-0 z-40" onClick={e => { e.stopPropagation(); setPriOpen(false); }} />
-            <div className="absolute top-6 left-0 z-50 bg-[#1a1614] border border-white/10 rounded-lg shadow-xl py-1 min-w-[120px]">
-              {priOptions.map(p => (
-                <button
-                  key={p.key}
-                  onClick={e => { e.stopPropagation(); onPriorityChange(p.key === "none" ? undefined as unknown as Task["priority"] : p.key as Task["priority"]); setPriOpen(false); }}
-                  className={cn("flex items-center gap-2 w-full px-3 py-1.5 text-[12px] hover:bg-white/5 transition-colors",
-                    (task.priority || "none") === p.key ? "text-white/80" : "text-white/40"
-                  )}
-                >
-                  <PriorityIcon priority={p.key === "none" ? undefined : p.key} className="h-3.5 w-3.5" />
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </>)}
-        </div>
-        <StatusIcon status={task.status === "todo" ? "inbox" : task.status} className="shrink-0" />
-        <span className="text-[13px] text-white/75 font-medium truncate flex-1">{task.summary}</span>
-        <span className="text-[11px] text-white/20 shrink-0">{timeAgo(task.at)}</span>
-      </div>
-
-      {expanded && (
-        <div className="px-3 pb-2.5 space-y-2 border-t border-white/5 pt-2">
-          {description && <p className="text-[12px] text-white/35 leading-relaxed line-clamp-3">{description}</p>}
-          <div className="flex items-center gap-2">
-            <button onClick={e => { e.stopPropagation(); onStart(); }}
-              className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-orange-500/10 text-orange-300 hover:bg-orange-500/20 transition-all">
-              <Play className="h-3 w-3" /> Start
-            </button>
-            <button onClick={e => { e.stopPropagation(); onEdit(); }}
-              className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-white/5 text-white/30 hover:bg-white/10 transition-all">
-              <Pencil className="h-3 w-3" /> Edit
-            </button>
-            <button onClick={e => { e.stopPropagation(); onStatusChange("done"); }}
-              className="flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-white/5 text-white/30 hover:bg-white/10 transition-all">
-              <Check className="h-3 w-3" /> Done
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}

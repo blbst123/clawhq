@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { useGateway } from "@/lib/gateway-context";
 import { useCachedRpc } from "@/lib/use-cached-rpc";
+import { formatTime, formatDate } from "@/lib/task-utils";
 
 // ═══════════════════════════════════════════════════════
 // Types
@@ -201,17 +202,7 @@ function extractToolUse(content: unknown): Array<Record<string, unknown>> {
   return content.filter((b: Record<string, unknown>) => b && (b.type === "tool_use" || b.type === "toolCall"));
 }
 
-function formatTime(ts: number): string { return new Date(ts).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).toLowerCase(); }
-
-function formatDate(ts: number): string {
-  const d = new Date(ts); const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const yesterday = new Date(today.getTime() - 86400000);
-  const day = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  if (day.getTime() === today.getTime()) return "Today";
-  if (day.getTime() === yesterday.getTime()) return "Yesterday";
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
+// formatTime, formatDate imported from @/lib/task-utils
 
 function parseChannel(label?: string): string {
   if (!label) return "";
