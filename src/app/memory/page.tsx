@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { FileText, Loader2, WifiOff, Calendar, Folder, Pencil, Save, X, Check } from "lucide-react";
 import { useGateway } from "@/lib/gateway-context";
+import { ConnectGate } from "@/components/ui/connect-gate";
 
 interface MemoryFile {
   path: string;
@@ -126,16 +127,7 @@ export default function FilesPage() {
   }, [editing, editContent, selectedFile]);
 
   if (connStatus !== "connected") {
-    return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <div className="h-8 w-8 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-white/30">
-            {connStatus === "error" ? "Reconnecting…" : "Connecting…"}
-          </p>
-        </div>
-      </div>
-    );
+    return <ConnectGate>{null}</ConnectGate>;
   }
 
   const coreFiles = files.filter(f => f.category === "core");

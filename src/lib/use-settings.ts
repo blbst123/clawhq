@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useGateway } from "@/lib/gateway-context";
+import { createStore } from "@/lib/create-store";
 
 export interface ProjectMeta {
   color?: string;
@@ -14,56 +15,42 @@ export interface ClawHQSettings {
 const DEFAULT_SETTINGS: ClawHQSettings = { projects: {} };
 const SETTINGS_PATH = "data/clawhq/settings.json";
 
-// Module-level cache so all components share the same data
-let settingsCache: ClawHQSettings | null = null;
-let settingsListeners = new Set<() => void>();
-
-function notifyListeners() {
-  settingsListeners.forEach(fn => fn());
-}
+const store = createStore<ClawHQSettings>(null);
 
 export function useSettings() {
   const { rpc, status } = useGateway();
-  const [settings, setSettingsLocal] = useState<ClawHQSettings>(settingsCache || DEFAULT_SETTINGS);
-  const [loaded, setLoaded] = useState(!!settingsCache);
+  const [settings, setSettingsLocal] = useState<ClawHQSettings>(store.get() || DEFAULT_SETTINGS);
+  const [loaded, setLoaded] = useState(!!store.get());
 
-  // Subscribe to cache changes
   useEffect(() => {
-    const handler = () => {
-      if (settingsCache) setSettingsLocal({ projects: { ...settingsCache.projects } });
-    };
-    settingsListeners.add(handler);
-    return () => { settingsListeners.delete(handler); };
+    return store.subscribe(() => {
+      const v = store.get();
+      if (v) setSettingsLocal({ projects: { ...v.projects } });
+    });
   }, []);
 
-  // Load on mount
   useEffect(() => {
-    if (!rpc || status !== "connected" || settingsCache) return;
+    if (!rpc || status !== "connected" || store.get()) return;
     (async () => {
       try {
         const result = await rpc.request<{ content: string }>("clawhq.files.read", { path: SETTINGS_PATH });
         if (result?.content) {
           const raw = JSON.parse(result.content);
-          settingsCache = {
-            projects: { ...DEFAULT_SETTINGS.projects, ...(raw.projects || {}) },
-          };
-          setSettingsLocal({ ...settingsCache });
+          store.set({ projects: { ...DEFAULT_SETTINGS.projects, ...(raw.projects || {}) } });
         }
       } catch {
-        settingsCache = { ...DEFAULT_SETTINGS };
+        store.set({ ...DEFAULT_SETTINGS });
       }
       setLoaded(true);
     })();
   }, [rpc, status]);
 
   const saveSettings = useCallback(async (patch: Partial<ClawHQSettings>) => {
-    const base = settingsCache || DEFAULT_SETTINGS;
+    const base = store.get() || DEFAULT_SETTINGS;
     const updated: ClawHQSettings = {
       projects: patch.projects ? { ...patch.projects } : { ...base.projects },
     };
-    settingsCache = updated;
-    setSettingsLocal({ ...updated });
-    notifyListeners();
+    store.set(updated);
     try {
       await rpc?.request("clawhq.files.write", {
         path: SETTINGS_PATH,
@@ -79,7 +66,6 @@ export function useSettings() {
     if (!key || key === "general") return "bg-white/40";
     const custom = settings.projects[key]?.color;
     if (custom) return custom;
-    // Deterministic hash fallback
     const palette = [
       "bg-purple-400", "bg-blue-400", "bg-cyan-400", "bg-teal-400", "bg-green-400",
       "bg-emerald-400", "bg-amber-400", "bg-orange-400", "bg-red-400", "bg-pink-400",

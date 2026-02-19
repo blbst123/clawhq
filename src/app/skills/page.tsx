@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Wrench, Loader2, ExternalLink, CheckCircle2, XCircle, Globe, Terminal, Key, Search, Package, FileCode, AlertTriangle } from "lucide-react";
 import { useGateway } from "@/lib/gateway-context";
+import { ConnectGate } from "@/components/ui/connect-gate";
 import ReactMarkdown from "react-markdown";
 
 interface Skill {
@@ -111,16 +112,7 @@ export default function SkillsPage() {
   const selected = skills.find(s => s.skillKey === selectedKey);
 
   if (connStatus !== "connected") {
-    return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <div className="h-8 w-8 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-white/30">
-            {connStatus === "error" ? "Reconnecting…" : "Connecting…"}
-          </p>
-        </div>
-      </div>
-    );
+    return <ConnectGate>{null}</ConnectGate>;
   }
 
   return (

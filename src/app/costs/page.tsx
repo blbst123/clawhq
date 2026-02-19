@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useGateway } from "@/lib/gateway-context";
 import { useCachedRpc } from "@/lib/use-cached-rpc";
+import { ConnectGate } from "@/components/ui/connect-gate";
 
 interface DailyCost {
   date: string;
@@ -93,16 +94,7 @@ export default function CostsPage() {
   const modelCosts = data?.modelCosts ?? [];
 
   if (connStatus !== "connected") {
-    return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <div className="h-8 w-8 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-white/30">
-            {connStatus === "error" ? "Reconnecting…" : "Connecting…"}
-          </p>
-        </div>
-      </div>
-    );
+    return <ConnectGate>{null}</ConnectGate>;
   }
 
   const totalCost = daily.reduce((s, d) => s + d.totalCost, 0);

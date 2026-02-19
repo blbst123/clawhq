@@ -1,5 +1,12 @@
 // ─── Chat message parsing & grouping (pure logic, no React) ───
 
+export interface ParsedAttachment {
+  type: "image";
+  mimeType: string;
+  data?: string;  // base64
+  url?: string;
+}
+
 export interface ParsedMessage {
   role: "user" | "assistant" | "tool" | "system";
   text: string;
@@ -7,6 +14,8 @@ export interface ParsedMessage {
   at: string;
   /** Full body for system events (cron reports, etc.) */
   body?: string;
+  /** Image attachments from content blocks */
+  attachments?: ParsedAttachment[];
 }
 
 export interface ToolEntry {
@@ -23,6 +32,45 @@ export interface MessageGroup {
 }
 
 // ─── Content extraction ───
+
+/** Extract image attachments from content block arrays */
+export function extractAttachments(content: unknown): ParsedAttachment[] {
+  if (!Array.isArray(content)) return [];
+  const attachments: ParsedAttachment[] = [];
+  for (const block of content) {
+    if (!block || typeof block !== "object") continue;
+    const b = block as Record<string, unknown>;
+    const btype = typeof b.type === "string" ? b.type.toLowerCase() : "";
+    if (btype === "input_image" || btype === "image") {
+      const src = b.source as Record<string, unknown> | undefined;
+      if (src) {
+        const srcType = typeof src.type === "string" ? src.type : "";
+        if (srcType === "base64") {
+          attachments.push({
+            type: "image",
+            mimeType: (typeof src.media_type === "string" ? src.media_type : "") || "image/png",
+            data: typeof src.data === "string" ? src.data : undefined,
+          });
+        } else if (srcType === "url") {
+          attachments.push({
+            type: "image",
+            mimeType: "image/png",
+            url: typeof src.url === "string" ? src.url : undefined,
+          });
+        }
+      }
+      // Also handle flat format: { type: "image", data: "...", mimeType: "..." }
+      if (!src && typeof b.data === "string") {
+        attachments.push({
+          type: "image",
+          mimeType: (typeof b.mimeType === "string" ? b.mimeType : "") || "image/png",
+          data: b.data,
+        });
+      }
+    }
+  }
+  return attachments;
+}
 
 export function extractText(content: unknown): string {
   if (typeof content === "string") return content;
@@ -233,6 +281,7 @@ export function parseMessages(raw: RawMessage[]): ParsedMessage[] {
       if (shouldHide(rawText)) continue;
 
       const { systemBlocks, userText } = splitUserContent(rawText);
+      const userAttachments = extractAttachments(m.content);
 
       // Emit system events as system messages (skip noise)
       for (const block of systemBlocks) {
@@ -246,9 +295,15 @@ export function parseMessages(raw: RawMessage[]): ParsedMessage[] {
         });
       }
 
-      // Emit user text if any remains
-      if (userText) {
-        msgs.push({ role: "user", text: userText, toolCards: [], at: ts });
+      // Emit user text if any remains (or if there are attachments)
+      if (userText || userAttachments.length > 0) {
+        msgs.push({
+          role: "user",
+          text: userText,
+          toolCards: [],
+          at: ts,
+          attachments: userAttachments.length > 0 ? userAttachments : undefined,
+        });
       }
       continue;
     }

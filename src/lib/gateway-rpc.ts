@@ -174,12 +174,13 @@ export class GatewayRPC {
     return this.request<unknown>("chat.history", { sessionKey, ...opts });
   }
 
-  async chatSend(sessionKey: string, message: string, opts?: { idempotencyKey?: string }) {
+  async chatSend(sessionKey: string, message: string, opts?: { idempotencyKey?: string; attachments?: { type: string; mimeType: string; content: string }[] }) {
     return this.request<{ runId?: string; status?: string }>("chat.send", {
       sessionKey,
       message,
       deliver: false,
       idempotencyKey: opts?.idempotencyKey ?? makeId(),
+      ...(opts?.attachments?.length ? { attachments: opts.attachments } : {}),
     });
   }
 

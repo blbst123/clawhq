@@ -14,6 +14,7 @@ import {
 interface GatewayContextValue {
   rpc: GatewayRPC;
   status: ConnectionStatus;
+  ready: boolean;
   config: GatewayConfig | null;
   connect: (config: GatewayConfig) => void;
   disconnect: () => void;
@@ -24,7 +25,8 @@ const GatewayContext = createContext<GatewayContextValue | null>(null);
 
 export function GatewayProvider({ children }: { children: React.ReactNode }) {
   const rpcRef = useRef<GatewayRPC>(getGateway());
-  const [status, setStatus] = useState<ConnectionStatus>("connecting");
+  const [status, setStatus] = useState<ConnectionStatus>("disconnected");
+  const [ready, setReady] = useState(false);
   const [config, setConfig] = useState<GatewayConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,28 +44,30 @@ export function GatewayProvider({ children }: { children: React.ReactNode }) {
   // Auto-connect: check URL params first, then saved config
   useEffect(() => {
     // Support ?token=xxx in URL (one-click setup from CLI)
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const urlToken = params.get("token");
-      if (urlToken) {
-        const cfg = { url: "__self__", token: urlToken };
-        setConfig(cfg);
-        saveGatewayConfig(cfg);
-        rpcRef.current.connect(cfg);
-        // Strip token from URL for security
-        const clean = new URL(window.location.href);
-        clean.searchParams.delete("token");
-        window.history.replaceState({}, "", clean.pathname + clean.search);
-        return;
-      }
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get("token");
+    if (urlToken) {
+      const cfg = { url: "__self__", token: urlToken };
+      setConfig(cfg);
+      setStatus("connecting");
+      saveGatewayConfig(cfg);
+      rpcRef.current.connect(cfg);
+      // Strip token from URL for security
+      const clean = new URL(window.location.href);
+      clean.searchParams.delete("token");
+      window.history.replaceState({}, "", clean.pathname + clean.search);
+      setReady(true);
+      return;
     }
 
     // Fall back to saved config
     const saved = loadGatewayConfig();
     if (saved) {
       setConfig(saved);
+      setStatus("connecting");
       rpcRef.current.connect(saved);
     }
+    setReady(true);
   }, []);
 
   const connect = useCallback((cfg: GatewayConfig) => {
@@ -84,6 +88,7 @@ export function GatewayProvider({ children }: { children: React.ReactNode }) {
     <GatewayContext.Provider value={{
       rpc: rpcRef.current,
       status,
+      ready,
       config,
       connect,
       disconnect,

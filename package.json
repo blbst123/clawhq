@@ -1,6 +1,6 @@
 {
   "name": "clawhq",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Owner-centric agent dashboard for OpenClaw — activity feed, planning queue, cost tracking, cron management, skills browser.",
   "license": "MIT",
   "repository": {
