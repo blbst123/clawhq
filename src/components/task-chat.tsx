@@ -35,6 +35,7 @@ interface TaskChatProps {
   onDelete?: () => void;
   initialMessage?: string;
   onInitialMessageSent?: () => void;
+  getProjectColor?: (proj?: string) => string;
 }
 
 // ─── Image Lightbox ───
@@ -254,7 +255,7 @@ export function ChatGroup({ group, showTools = true }: { group: MessageGroup; sh
 
 // ─── Main TaskChat Component ───
 
-export function TaskChat({ task, allProjects, onBack, onStatusChange, onPriorityChange, onProjectChange, onEdit, onDelete, initialMessage, onInitialMessageSent }: TaskChatProps) {
+export function TaskChat({ task, allProjects, onBack, onStatusChange, onPriorityChange, onProjectChange, onEdit, onDelete, initialMessage, onInitialMessageSent, getProjectColor }: TaskChatProps) {
   const { id: taskId, summary: taskSummary, sessionKey } = task;
 
   const chat = useChatSession({
@@ -362,6 +363,7 @@ export function TaskChat({ task, allProjects, onBack, onStatusChange, onPriority
         onProjectChange={onProjectChange}
         onEdit={onEdit}
         onDelete={onDelete}
+        getProjectColor={getProjectColor}
       />
 
       {/* Messages */}

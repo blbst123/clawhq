@@ -65,7 +65,7 @@ export function Sidebar() {
       {/* Logo + Collapse */}
       <div className="flex h-14 items-center justify-between px-3">
         <div className={cn("flex items-center gap-2", collapsed && "justify-center w-full")}>
-          <span className="text-lg">{agentEmoji}</span>
+          <img src="/logo.png" alt="ClawHQ" className={cn("rounded", collapsed ? "h-6 w-6" : "h-7 w-7")} />
           {!collapsed && (
             <span className="text-[15px] font-semibold text-white/90 tracking-tight">ClawHQ</span>
           )}

@@ -21,6 +21,7 @@ interface TaskHeaderProps {
   onProjectChange?: (project: string) => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  getProjectColor?: (proj?: string) => string;
 }
 
 export function TaskHeader({
@@ -34,9 +35,11 @@ export function TaskHeader({
   onProjectChange,
   onEdit,
   onDelete,
+  getProjectColor: getProjectColorProp,
 }: TaskHeaderProps) {
   const [showPriorityPicker, setShowPriorityPicker] = useState(false);
   const [showProjectPicker, setShowProjectPicker] = useState(false);
+  const pColor = getProjectColorProp || projColor;
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   return (
@@ -58,14 +61,14 @@ export function TaskHeader({
           <div className="relative">
             <button onClick={() => setShowProjectPicker(!showProjectPicker)}
               className="flex items-center gap-1.5 text-[12px] text-white/45 hover:text-white/70 px-1.5 py-0.5 rounded-md hover:bg-white/[0.04] transition-all">
-              <div className={cn("h-2.5 w-2.5 rounded-full", projColor(task.project))} />
+              <div className={cn("h-2.5 w-2.5 rounded-full", pColor(task.project))} />
               <span>{projLabel(task.project)}</span>
             </button>
             <InlineDropdown show={showProjectPicker} onClose={() => setShowProjectPicker(false)}>
               {(allProjects || ["general"]).map(p => (
                 <button key={p} onClick={() => { onProjectChange?.(p); setShowProjectPicker(false); }}
                   className="w-full text-left flex items-center gap-2 px-3 py-1.5 hover:bg-white/5 transition-all">
-                  <div className={cn("h-2 w-2 rounded-full", projColor(p))} />
+                  <div className={cn("h-2 w-2 rounded-full", pColor(p))} />
                   <span className="text-[12px] text-white/60">{projLabel(p)}</span>
                   {(task.project || "general") === p && <Check className="h-3 w-3 text-orange-400 ml-auto" />}
                 </button>

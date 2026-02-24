@@ -454,6 +454,7 @@ export default function Dashboard() {
               onStatusChange={(status) => { updateTask(chatTask.id, { status: status as Task["status"] }); if (status !== "in_progress") setActiveChatTaskId(null); }}
               onPriorityChange={(pri) => updateTask(chatTask.id, { priority: pri as Task["priority"] })}
               onProjectChange={(proj) => updateTask(chatTask.id, { project: proj })}
+              getProjectColor={getProjectColor}
               onDelete={() => { deleteTask(chatTask.id); setActiveChatTaskId(null); }}
               initialMessage={pendingKickoff ?? undefined}
               onInitialMessageSent={() => setPendingKickoff(null)}

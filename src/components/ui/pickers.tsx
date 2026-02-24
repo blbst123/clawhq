@@ -31,13 +31,11 @@ export function StatusPicker({
   return (
     <div className={cn("relative", className)}>
       <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-all"
+        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        className="p-1 rounded hover:bg-white/[0.05] transition-all"
+        title={statusOptions.find(s => s.key === current)?.label}
       >
-        <StatusIcon status={current} className="h-3.5 w-3.5" />
-        <span className="text-[12px] text-white/60">
-          {statusOptions.find(s => s.key === current)?.label}
-        </span>
+        <StatusIcon status={current} className="h-4 w-4" />
       </button>
       <InlineDropdown show={open} onClose={() => setOpen(false)} className="min-w-[140px]">
         {statusOptions.map(s => (
@@ -70,13 +68,11 @@ export function PriorityPicker({
   return (
     <div className={cn("relative", className)}>
       <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-all"
+        onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        className="p-1 rounded hover:bg-white/[0.05] transition-all"
+        title={priOptions.find(p => p.key === (priority || "none"))?.label}
       >
-        <PriorityIcon priority={priority} className="h-3.5 w-3.5" />
-        <span className="text-[12px] text-white/60">
-          {priOptions.find(p => p.key === (priority || "none"))?.label}
-        </span>
+        <PriorityIcon priority={priority} className="h-4 w-4" />
       </button>
       <InlineDropdown show={open} onClose={() => setOpen(false)} className="min-w-[170px]">
         {priOptions.map(p => (
